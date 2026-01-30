@@ -291,13 +291,21 @@ def run_server(
     
     # Run the server over stdio
     import asyncio
-    asyncio.run(stdio_server(server))
-
-
-if __name__ == "__main__":
-    import sys
     
+    async def run():
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(read_stream, write_stream, server.create_initialization_options())
+    
+    asyncio.run(run())
+
+
+def main():
+    """Entry point for MCP server."""
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
     persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
     
     run_server(vault_path, persist_dir)
+
+
+if __name__ == "__main__":
+    main()
