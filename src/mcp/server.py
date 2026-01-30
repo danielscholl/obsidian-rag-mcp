@@ -9,7 +9,6 @@ import logging
 import os
 from typing import Any
 
-from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import (
     CallToolResult,
@@ -17,6 +16,7 @@ from mcp.types import (
     Tool,
 )
 
+from mcp.server import Server
 from src.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
@@ -105,23 +105,23 @@ TOOLS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Natural language search query"
+                    "description": "Natural language search query",
                 },
                 "top_k": {
                     "type": "integer",
                     "description": f"Number of results to return (1-{MAX_TOP_K}, default: 5)",
                     "default": 5,
                     "minimum": MIN_TOP_K,
-                    "maximum": MAX_TOP_K
+                    "maximum": MAX_TOP_K,
                 },
                 "tags": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional: filter by tags (e.g., ['rca', 'billing'])"
-                }
+                    "description": "Optional: filter by tags (e.g., ['rca', 'billing'])",
+                },
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     ),
     Tool(
         name="search_by_tag",
@@ -135,22 +135,22 @@ TOOLS = [
                 "tags": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Tags to search for (OR logic)"
+                    "description": "Tags to search for (OR logic)",
                 },
                 "query": {
                     "type": "string",
-                    "description": "Optional: additional semantic query to rank results"
+                    "description": "Optional: additional semantic query to rank results",
                 },
                 "top_k": {
                     "type": "integer",
                     "description": f"Number of results to return (1-{MAX_TOP_K}, default: 5)",
                     "default": 5,
                     "minimum": MIN_TOP_K,
-                    "maximum": MAX_TOP_K
-                }
+                    "maximum": MAX_TOP_K,
+                },
             },
-            "required": ["tags"]
-        }
+            "required": ["tags"],
+        },
     ),
     Tool(
         name="get_note",
@@ -163,11 +163,11 @@ TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Relative path to the note (e.g., 'RCAs/2024-01-15-database-outage.md')"
+                    "description": "Relative path to the note (e.g., 'RCAs/incident.md')",
                 }
             },
-            "required": ["path"]
-        }
+            "required": ["path"],
+        },
     ),
     Tool(
         name="get_related",
@@ -178,20 +178,17 @@ TOOLS = [
         inputSchema={
             "type": "object",
             "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the source note"
-                },
+                "path": {"type": "string", "description": "Path to the source note"},
                 "top_k": {
                     "type": "integer",
                     "description": f"Number of related notes to return (1-{MAX_TOP_K}, default: 5)",
                     "default": 5,
                     "minimum": MIN_TOP_K,
-                    "maximum": MAX_TOP_K
-                }
+                    "maximum": MAX_TOP_K,
+                },
             },
-            "required": ["path"]
-        }
+            "required": ["path"],
+        },
     ),
     Tool(
         name="list_recent",
@@ -207,10 +204,10 @@ TOOLS = [
                     "description": f"Number of notes to return (1-{MAX_LIMIT}, default: 10)",
                     "default": 10,
                     "minimum": MIN_LIMIT,
-                    "maximum": MAX_LIMIT
+                    "maximum": MAX_LIMIT,
                 }
-            }
-        }
+            },
+        },
     ),
     Tool(
         name="index_status",
@@ -218,10 +215,7 @@ TOOLS = [
             "Check the status of the search index. Shows number of files "
             "indexed and other statistics."
         ),
-        inputSchema={
-            "type": "object",
-            "properties": {}
-        }
+        inputSchema={"type": "object", "properties": {}},
     ),
 ]
 
@@ -229,38 +223,42 @@ TOOLS = [
 async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResult:
     """Handle a tool call from MCP client."""
     engine = get_engine()
-    
+
     try:
         if name == "search_vault":
             query = validate_query(arguments["query"])
             top_k = validate_top_k(arguments.get("top_k"))
             tags = validate_tags(arguments.get("tags"))
-            
-            logger.info(f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}")
-            
+
+            logger.info(
+                f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}"
+            )
+
             response = engine.search(
                 query=query,
                 top_k=top_k,
                 tags=tags if tags else None,
             )
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=json.dumps(response.to_dict(), indent=2)
-                )]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
-        
+
         elif name == "search_by_tag":
             tags = validate_tags(arguments.get("tags"))
             if not tags:
                 return CallToolResult(
-                    content=[TextContent(
-                        type="text",
-                        text="Error: At least one tag is required"
-                    )],
-                    isError=True
+                    content=[
+                        TextContent(
+                            type="text", text="Error: At least one tag is required"
+                        )
+                    ],
+                    isError=True,
                 )
-            
+
             top_k = validate_top_k(arguments.get("top_k"))
             query = arguments.get("query", "")
             if query:
@@ -268,111 +266,91 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             else:
                 # If no query, use tags as semantic search
                 query = " ".join(tags)
-            
+
             logger.info(f"search_by_tag: tags={tags}, top_k={top_k}")
-            
+
             response = engine.search(
                 query=query,
                 top_k=top_k,
                 tags=tags,
             )
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=json.dumps(response.to_dict(), indent=2)
-                )]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
-        
+
         elif name == "get_note":
             path = validate_path(arguments["path"])
-            
+
             logger.info(f"get_note: path='{path}'")
-            
+
             content = engine.get_note(path)
             if content is None:
                 return CallToolResult(
-                    content=[TextContent(
-                        type="text",
-                        text=f"Note not found: {path}"
-                    )],
-                    isError=True
+                    content=[TextContent(type="text", text=f"Note not found: {path}")],
+                    isError=True,
                 )
-            return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=content
-                )]
-            )
-        
+            return CallToolResult(content=[TextContent(type="text", text=content)])
+
         elif name == "get_related":
             path = validate_path(arguments["path"])
             top_k = validate_top_k(arguments.get("top_k"))
-            
+
             logger.info(f"get_related: path='{path}', top_k={top_k}")
-            
+
             response = engine.get_related(
                 path=path,
                 top_k=top_k,
             )
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=json.dumps(response.to_dict(), indent=2)
-                )]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
-        
+
         elif name == "list_recent":
             limit = validate_limit(arguments.get("limit"))
-            
+
             logger.info(f"list_recent: limit={limit}")
-            
+
             recent = engine.list_recent(limit=limit)
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=json.dumps(recent, indent=2)
-                )]
+                content=[TextContent(type="text", text=json.dumps(recent, indent=2))]
             )
-        
+
         elif name == "index_status":
             logger.info("index_status")
-            
+
             stats = engine.get_stats()
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=json.dumps(stats.to_dict(), indent=2)
-                )]
+                content=[
+                    TextContent(type="text", text=json.dumps(stats.to_dict(), indent=2))
+                ]
             )
-        
+
         else:
             logger.warning(f"Unknown tool: {name}")
             return CallToolResult(
-                content=[TextContent(
-                    type="text",
-                    text=f"Unknown tool: {name}"
-                )],
-                isError=True
+                content=[TextContent(type="text", text=f"Unknown tool: {name}")],
+                isError=True,
             )
-    
+
     except ValueError as e:
         logger.warning(f"Validation error in {name}: {e}")
         return CallToolResult(
-            content=[TextContent(
-                type="text",
-                text=f"Validation error: {str(e)}"
-            )],
-            isError=True
+            content=[TextContent(type="text", text=f"Validation error: {str(e)}")],
+            isError=True,
         )
-    
+
     except Exception as e:
         logger.exception(f"Error in {name}: {e}")
         return CallToolResult(
-            content=[TextContent(
-                type="text",
-                text=f"Error: {str(e)}"
-            )],
-            isError=True
+            content=[TextContent(type="text", text=f"Error: {str(e)}")], isError=True
         )
 
 
@@ -382,41 +360,43 @@ def run_server(
 ):
     """
     Run the MCP server.
-    
+
     Args:
         vault_path: Path to the Obsidian vault
         persist_dir: ChromaDB storage directory
     """
     global _engine
-    
-    logger.info(f"Starting Obsidian RAG MCP server")
+
+    logger.info("Starting Obsidian RAG MCP server")
     logger.info(f"Vault path: {vault_path}")
     logger.info(f"Persist dir: {persist_dir}")
-    
+
     # Initialize the RAG engine
     _engine = RAGEngine(
         vault_path=vault_path,
         persist_dir=persist_dir,
     )
-    
+
     # Create MCP server
     server = Server("obsidian-rag")
-    
+
     @server.list_tools()
     async def list_tools():
         return TOOLS
-    
+
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]):
         return await handle_tool_call(name, arguments)
-    
+
     # Run the server over stdio
     import asyncio
-    
+
     async def run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
-    
+            await server.run(
+                read_stream, write_stream, server.create_initialization_options()
+            )
+
     asyncio.run(run())
 
 
@@ -427,10 +407,10 @@ def main():
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    
+
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
     persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
-    
+
     run_server(vault_path, persist_dir)
 
 

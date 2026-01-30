@@ -7,7 +7,7 @@ from .indexer import IndexerConfig, IndexStats, VaultIndexer
 
 __all__ = [
     "Chunk",
-    "ChunkerConfig", 
+    "ChunkerConfig",
     "MarkdownChunker",
     "EmbedderConfig",
     "OpenAIEmbedder",
