@@ -187,16 +187,14 @@ class RAGEngine:
         Returns:
             Note content or None if not found
         """
-        full_path = self.vault_path / path
+        full_path = (self.vault_path / path).resolve()
+        
+        # Security: check path containment FIRST (before revealing existence)
+        if not full_path.is_relative_to(self.vault_path):
+            return None  # Path traversal attempt
         
         if not full_path.exists():
             return None
-        
-        # Security: ensure path is within vault
-        try:
-            full_path.resolve().relative_to(self.vault_path)
-        except ValueError:
-            return None  # Path traversal attempt
         
         return full_path.read_text(encoding='utf-8')
     

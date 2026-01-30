@@ -4,8 +4,9 @@ Vault indexer - scans, chunks, and indexes Obsidian vault content.
 
 import hashlib
 import json
+import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -15,6 +16,8 @@ from chromadb.config import Settings
 
 from .chunker import Chunk, ChunkerConfig, MarkdownChunker
 from .embedder import EmbedderConfig, OpenAIEmbedder
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,8 +32,8 @@ class IndexerConfig:
     chunker_config: Optional[ChunkerConfig] = None
     embedder_config: Optional[EmbedderConfig] = None
     
-    # Behavior
-    ignore_patterns: list[str] = None  # Glob patterns to ignore
+    # Behavior - use field with default_factory for mutable default
+    ignore_patterns: Optional[list[str]] = None
     
     def __post_init__(self):
         if self.ignore_patterns is None:
@@ -75,6 +78,14 @@ class VaultIndexer:
         self.config = config
         self.vault_path = Path(config.vault_path).resolve()
         
+        # Validate vault path exists
+        if not self.vault_path.exists():
+            raise ValueError(f"Vault path does not exist: {self.vault_path}")
+        if not self.vault_path.is_dir():
+            raise ValueError(f"Vault path is not a directory: {self.vault_path}")
+        
+        logger.info(f"Initializing indexer for vault: {self.vault_path}")
+        
         # Initialize components
         self.chunker = MarkdownChunker(config.chunker_config)
         self.embedder = OpenAIEmbedder(
@@ -100,18 +111,27 @@ class VaultIndexer:
         # Load file hashes for incremental indexing
         self.hash_file = persist_path / "file_hashes.json"
         self.file_hashes = self._load_hashes()
+        
+        logger.debug(f"Loaded {len(self.file_hashes)} file hashes from cache")
     
     def _load_hashes(self) -> dict[str, str]:
         """Load previously computed file hashes."""
         if self.hash_file.exists():
-            with open(self.hash_file) as f:
-                return json.load(f)
+            try:
+                with open(self.hash_file) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning(f"Failed to load hash cache: {e}")
+                return {}
         return {}
     
     def _save_hashes(self):
         """Save file hashes for incremental indexing."""
-        with open(self.hash_file, 'w') as f:
-            json.dump(self.file_hashes, f)
+        try:
+            with open(self.hash_file, 'w') as f:
+                json.dump(self.file_hashes, f)
+        except IOError as e:
+            logger.warning(f"Failed to save hash cache: {e}")
     
     def _compute_hash(self, content: str) -> str:
         """Compute hash of file content."""
@@ -121,6 +141,9 @@ class VaultIndexer:
         """Check if a file should be ignored."""
         rel_path = str(path.relative_to(self.vault_path))
         
+        if self.config.ignore_patterns is None:
+            return False
+            
         for pattern in self.config.ignore_patterns:
             if pattern.endswith('/*'):
                 # Directory pattern
@@ -157,18 +180,22 @@ class VaultIndexer:
             IndexStats with indexing results
         """
         files = self.scan_vault()
-        total_chunks = 0
         files_indexed = 0
         
         all_chunks: list[Chunk] = []
         files_to_index: list[tuple[Path, str]] = []
         
-        print(f"Scanning {len(files)} files...")
+        logger.info(f"Scanning {len(files)} files...")
         
         # First pass: determine what needs indexing
         for file_path in files:
             rel_path = str(file_path.relative_to(self.vault_path))
-            content = file_path.read_text(encoding='utf-8')
+            try:
+                content = file_path.read_text(encoding='utf-8')
+            except (IOError, UnicodeDecodeError) as e:
+                logger.warning(f"Failed to read {rel_path}: {e}")
+                continue
+                
             content_hash = self._compute_hash(content)
             
             if force or self.file_hashes.get(rel_path) != content_hash:
@@ -176,7 +203,7 @@ class VaultIndexer:
                 self.file_hashes[rel_path] = content_hash
         
         if not files_to_index:
-            print("No files need indexing.")
+            logger.info("No files need indexing.")
             return IndexStats(
                 total_files=len(files),
                 total_chunks=self.collection.count(),
@@ -184,7 +211,7 @@ class VaultIndexer:
                 vault_path=str(self.vault_path),
             )
         
-        print(f"Indexing {len(files_to_index)} files...")
+        logger.info(f"Indexing {len(files_to_index)} files...")
         
         # Second pass: chunk all files
         for file_path, content in files_to_index:
@@ -193,8 +220,12 @@ class VaultIndexer:
             # Remove old chunks for this file
             try:
                 self.collection.delete(where={"source_path": rel_path})
-            except Exception:
-                pass  # Collection might be empty
+            except ValueError:
+                # Collection might be empty or have no matching documents
+                pass
+            except Exception as e:
+                # Log but don't fail - old chunks will be overwritten anyway
+                logger.debug(f"Failed to delete old chunks for {rel_path}: {e}")
             
             # Chunk the document
             chunks = self.chunker.chunk_document(content, rel_path)
@@ -202,7 +233,7 @@ class VaultIndexer:
             files_indexed += 1
         
         if not all_chunks:
-            print("No chunks generated.")
+            logger.info("No chunks generated.")
             return IndexStats(
                 total_files=len(files),
                 total_chunks=0,
@@ -210,11 +241,11 @@ class VaultIndexer:
                 vault_path=str(self.vault_path),
             )
         
-        print(f"Embedding {len(all_chunks)} chunks...")
+        logger.info(f"Embedding {len(all_chunks)} chunks...")
         
         # Third pass: embed all chunks
         texts = [chunk.content for chunk in all_chunks]
-        embeddings = self.embedder.embed_texts(texts)
+        embeddings = self.embedder.embed_texts(texts, is_query=False)
         
         # Fourth pass: store in ChromaDB
         ids = []
@@ -244,12 +275,13 @@ class VaultIndexer:
                 documents=documents[i:end],
                 metadatas=metadatas[i:end],
             )
+            logger.debug(f"Stored batch {i // batch_size + 1}")
         
         # Save hashes
         self._save_hashes()
         
         total_chunks = self.collection.count()
-        print(f"Indexed {files_indexed} files, {len(all_chunks)} chunks. Total: {total_chunks} chunks.")
+        logger.info(f"Indexed {files_indexed} files, {len(all_chunks)} chunks. Total: {total_chunks} chunks.")
         
         return IndexStats(
             total_files=len(files),
@@ -269,6 +301,7 @@ class VaultIndexer:
     
     def delete_index(self):
         """Delete the entire index."""
+        logger.info("Deleting index...")
         self.chroma_client.delete_collection(self.config.collection_name)
         self.collection = self.chroma_client.create_collection(
             name=self.config.collection_name,
@@ -276,3 +309,4 @@ class VaultIndexer:
         )
         self.file_hashes = {}
         self._save_hashes()
+        logger.info("Index deleted.")

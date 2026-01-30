@@ -5,6 +5,7 @@ Exposes semantic search and vault operations as MCP tools.
 """
 
 import json
+import logging
 import os
 from typing import Any
 
@@ -18,6 +19,15 @@ from mcp.types import (
 
 from src.rag import RAGEngine
 
+logger = logging.getLogger(__name__)
+
+# Validation constants
+MIN_TOP_K = 1
+MAX_TOP_K = 50
+MIN_LIMIT = 1
+MAX_LIMIT = 100
+MAX_QUERY_LENGTH = 10000
+
 
 # Global engine instance (initialized on server start)
 _engine: RAGEngine | None = None
@@ -28,6 +38,57 @@ def get_engine() -> RAGEngine:
     if _engine is None:
         raise RuntimeError("RAG engine not initialized. Call run_server() first.")
     return _engine
+
+
+def validate_top_k(value: Any, default: int = 5) -> int:
+    """Validate and clamp top_k parameter."""
+    if value is None:
+        return default
+    try:
+        k = int(value)
+        return max(MIN_TOP_K, min(k, MAX_TOP_K))
+    except (TypeError, ValueError):
+        return default
+
+
+def validate_limit(value: Any, default: int = 10) -> int:
+    """Validate and clamp limit parameter."""
+    if value is None:
+        return default
+    try:
+        lim = int(value)
+        return max(MIN_LIMIT, min(lim, MAX_LIMIT))
+    except (TypeError, ValueError):
+        return default
+
+
+def validate_query(value: str) -> str:
+    """Validate and sanitize query string."""
+    if not value or not isinstance(value, str):
+        raise ValueError("Query must be a non-empty string")
+    # Truncate overly long queries
+    if len(value) > MAX_QUERY_LENGTH:
+        logger.warning(f"Query truncated from {len(value)} to {MAX_QUERY_LENGTH} chars")
+        value = value[:MAX_QUERY_LENGTH]
+    return value.strip()
+
+
+def validate_path(value: str) -> str:
+    """Validate path string."""
+    if not value or not isinstance(value, str):
+        raise ValueError("Path must be a non-empty string")
+    # Basic sanitization - strip whitespace
+    return value.strip()
+
+
+def validate_tags(value: Any) -> list[str]:
+    """Validate tags array."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("Tags must be an array")
+    # Ensure all tags are strings and non-empty
+    return [str(t).strip() for t in value if t and str(t).strip()]
 
 
 # Define MCP tools
@@ -48,8 +109,10 @@ TOOLS = [
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Number of results to return (default: 5)",
-                    "default": 5
+                    "description": f"Number of results to return (1-{MAX_TOP_K}, default: 5)",
+                    "default": 5,
+                    "minimum": MIN_TOP_K,
+                    "maximum": MAX_TOP_K
                 },
                 "tags": {
                     "type": "array",
@@ -80,8 +143,10 @@ TOOLS = [
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Number of results to return (default: 5)",
-                    "default": 5
+                    "description": f"Number of results to return (1-{MAX_TOP_K}, default: 5)",
+                    "default": 5,
+                    "minimum": MIN_TOP_K,
+                    "maximum": MAX_TOP_K
                 }
             },
             "required": ["tags"]
@@ -119,8 +184,10 @@ TOOLS = [
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Number of related notes to return (default: 5)",
-                    "default": 5
+                    "description": f"Number of related notes to return (1-{MAX_TOP_K}, default: 5)",
+                    "default": 5,
+                    "minimum": MIN_TOP_K,
+                    "maximum": MAX_TOP_K
                 }
             },
             "required": ["path"]
@@ -137,8 +204,10 @@ TOOLS = [
             "properties": {
                 "limit": {
                     "type": "integer",
-                    "description": "Number of notes to return (default: 10)",
-                    "default": 10
+                    "description": f"Number of notes to return (1-{MAX_LIMIT}, default: 10)",
+                    "default": 10,
+                    "minimum": MIN_LIMIT,
+                    "maximum": MAX_LIMIT
                 }
             }
         }
@@ -163,10 +232,16 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
     
     try:
         if name == "search_vault":
+            query = validate_query(arguments["query"])
+            top_k = validate_top_k(arguments.get("top_k"))
+            tags = validate_tags(arguments.get("tags"))
+            
+            logger.info(f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}")
+            
             response = engine.search(
-                query=arguments["query"],
-                top_k=arguments.get("top_k", 5),
-                tags=arguments.get("tags"),
+                query=query,
+                top_k=top_k,
+                tags=tags if tags else None,
             )
             return CallToolResult(
                 content=[TextContent(
@@ -176,15 +251,30 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         elif name == "search_by_tag":
+            tags = validate_tags(arguments.get("tags"))
+            if not tags:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text="Error: At least one tag is required"
+                    )],
+                    isError=True
+                )
+            
+            top_k = validate_top_k(arguments.get("top_k"))
             query = arguments.get("query", "")
-            if not query:
-                # If no query, use a generic one
-                query = " ".join(arguments["tags"])
+            if query:
+                query = validate_query(query)
+            else:
+                # If no query, use tags as semantic search
+                query = " ".join(tags)
+            
+            logger.info(f"search_by_tag: tags={tags}, top_k={top_k}")
             
             response = engine.search(
                 query=query,
-                top_k=arguments.get("top_k", 5),
-                tags=arguments["tags"],
+                top_k=top_k,
+                tags=tags,
             )
             return CallToolResult(
                 content=[TextContent(
@@ -194,12 +284,16 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         elif name == "get_note":
-            content = engine.get_note(arguments["path"])
+            path = validate_path(arguments["path"])
+            
+            logger.info(f"get_note: path='{path}'")
+            
+            content = engine.get_note(path)
             if content is None:
                 return CallToolResult(
                     content=[TextContent(
                         type="text",
-                        text=f"Note not found: {arguments['path']}"
+                        text=f"Note not found: {path}"
                     )],
                     isError=True
                 )
@@ -211,9 +305,14 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         elif name == "get_related":
+            path = validate_path(arguments["path"])
+            top_k = validate_top_k(arguments.get("top_k"))
+            
+            logger.info(f"get_related: path='{path}', top_k={top_k}")
+            
             response = engine.get_related(
-                path=arguments["path"],
-                top_k=arguments.get("top_k", 5),
+                path=path,
+                top_k=top_k,
             )
             return CallToolResult(
                 content=[TextContent(
@@ -223,7 +322,11 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         elif name == "list_recent":
-            recent = engine.list_recent(limit=arguments.get("limit", 10))
+            limit = validate_limit(arguments.get("limit"))
+            
+            logger.info(f"list_recent: limit={limit}")
+            
+            recent = engine.list_recent(limit=limit)
             return CallToolResult(
                 content=[TextContent(
                     type="text",
@@ -232,6 +335,8 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         elif name == "index_status":
+            logger.info("index_status")
+            
             stats = engine.get_stats()
             return CallToolResult(
                 content=[TextContent(
@@ -241,6 +346,7 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             )
         
         else:
+            logger.warning(f"Unknown tool: {name}")
             return CallToolResult(
                 content=[TextContent(
                     type="text",
@@ -249,7 +355,18 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 isError=True
             )
     
+    except ValueError as e:
+        logger.warning(f"Validation error in {name}: {e}")
+        return CallToolResult(
+            content=[TextContent(
+                type="text",
+                text=f"Validation error: {str(e)}"
+            )],
+            isError=True
+        )
+    
     except Exception as e:
+        logger.exception(f"Error in {name}: {e}")
         return CallToolResult(
             content=[TextContent(
                 type="text",
@@ -271,6 +388,10 @@ def run_server(
         persist_dir: ChromaDB storage directory
     """
     global _engine
+    
+    logger.info(f"Starting Obsidian RAG MCP server")
+    logger.info(f"Vault path: {vault_path}")
+    logger.info(f"Persist dir: {persist_dir}")
     
     # Initialize the RAG engine
     _engine = RAGEngine(
@@ -301,6 +422,12 @@ def run_server(
 
 def main():
     """Entry point for MCP server."""
+    # Configure logging for MCP server
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
     persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
     
