@@ -1,75 +1,51 @@
 # Obsidian RAG MCP Server
 
-Semantic search for your Obsidian vault, exposed as an MCP server for Claude Code integration.
+**Your notes, searchable by meaning.**
 
-## What This Does
+An MCP server that gives Claude Code semantic search over your Obsidian vault. Ask questions in natural language, get answers from your own documents.
 
-Turn your Obsidian vault into a searchable knowledge base that AI assistants can query semantically. Instead of keyword matching, find documents by meaning.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Example:**
-> "Find RCAs where database timeouts caused customer-facing issues"
+---
 
-Returns relevant RCA documents even if they use terms like "CosmosDB latency", "connection pool exhaustion", or "query timeout" — not just exact keyword matches.
+## The Problem
 
-## Features
+You have 500 notes in Obsidian. You know you wrote something about database timeouts causing customer issues... somewhere. Ctrl+F won't help when you don't remember the exact words.
 
-- 🔍 **Semantic Search**: Find documents by meaning, not just keywords
-- 🏷️ **Tag-Aware**: Filter searches by Obsidian tags
-- 📊 **Metadata Extraction**: Leverages frontmatter and document structure
-- 🔌 **MCP Integration**: Works directly with Claude Code
-- 🏠 **Local-First**: Your data stays on your machine (only embeddings sent to OpenAI)
-- ⚡ **Fast**: Sub-second queries on 100+ document vaults
+## The Solution
+
+This server indexes your vault with vector embeddings. Ask for "RCAs where database timeouts caused customer-facing issues" and get results even if your notes use terms like "CosmosDB latency", "connection pool exhaustion", or "query timeout."
+
+Semantic search. Your data stays local. Sub-second queries.
+
+---
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- OpenAI API key (for embeddings)
-- An Obsidian vault (or use the included sample vault)
-
-### Installation
-
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/obsidian-rag-mcp.git
+# Clone and install
+git clone https://github.com/ed-insights-ai/obsidian-rag-mcp.git
 cd obsidian-rag-mcp
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
-
-# Install dependencies
+python -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# Set up environment
+# Configure
 cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-```
+# Add your OPENAI_API_KEY to .env
 
-### Index Your Vault
+# Index your vault
+obsidian-rag index /path/to/your/vault
 
-```bash
-# Index the sample vault
-obsidian-rag index ./vault
-
-# Or index your own vault
-obsidian-rag index /path/to/your/obsidian/vault
-```
-
-### Test It
-
-```bash
-# Search from CLI
+# Test it
 obsidian-rag search "database connection issues"
-
-# Start the MCP server
-obsidian-rag serve
 ```
 
-### Connect to Claude Code
+---
 
-Add to your Claude Code MCP configuration:
+## Connect to Claude Code
+
+Add to your MCP configuration (`~/.config/claude/mcp.json` or similar):
 
 ```json
 {
@@ -85,68 +61,74 @@ Add to your Claude Code MCP configuration:
 }
 ```
 
+Then ask Claude things like:
+- "Search my vault for notes about Kubernetes deployments"
+- "Find RCAs related to authentication failures"
+- "What did I write about the Q3 migration?"
+
+---
+
 ## MCP Tools
 
-Once connected, Claude Code has access to these tools:
+| Tool | What it does |
+|------|--------------|
+| `search_vault` | Semantic search across all content |
+| `search_by_tag` | Filter by Obsidian tags |
+| `get_related` | Find notes similar to a given note |
+| `get_note` | Retrieve full note content |
+| `list_recent` | Recently modified notes |
 
-| Tool | Description |
-|------|-------------|
-| `search_vault` | Semantic search across all vault content |
-| `search_by_tag` | Search filtered by Obsidian tags |
-| `get_related` | Find notes related to a given note |
-| `get_note` | Retrieve full content of a specific note |
-| `list_recent` | List recently modified notes |
+---
 
-## Sample Vault
+## How It Works
 
-The `vault/` directory contains sample RCA documents for testing. To regenerate:
+1. **Index**: Scans your vault, chunks markdown intelligently (respecting headers, code blocks), generates embeddings via OpenAI
+2. **Store**: Vectors go into ChromaDB (local, no external database needed)
+3. **Query**: Your question gets embedded, matched against stored vectors, ranked results returned
 
-```bash
-python scripts/seed_vault.py
-```
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design.
 
-## Architecture
+---
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
+## Configuration
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | For generating embeddings |
+| `OBSIDIAN_VAULT_PATH` | No | Default vault path |
+| `CHROMA_PERSIST_DIR` | No | Where to store the vector database |
+
+**Cost**: ~$0.02 to index 100 notes. Queries are essentially free (~$0.00001 each).
+
+---
 
 ## Development
 
 ```bash
-# Install dev dependencies
 pip install -e ".[dev]"
 
-# Run tests
-pytest
+# Tests
+pytest tests/ -v
+
+# Linting + formatting
+black src/ tests/ && ruff check src/ tests/
 
 # Type checking
 mypy src
-
-# Linting
-ruff check src
 ```
 
-## Configuration
+Pre-commit hooks enforce these on every commit. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
 
-Environment variables:
+---
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key for embeddings |
-| `OBSIDIAN_VAULT_PATH` | No | Default vault path |
-| `CHROMA_PERSIST_DIR` | No | ChromaDB storage location |
+## Requirements
 
-## Cost
+- Python 3.11+
+- OpenAI API key
+- An Obsidian vault (or use `vault/` for testing)
 
-Embedding costs with OpenAI text-embedding-3-small:
-- ~100 notes (avg 2000 tokens each): ~$0.02 per full reindex
-- Queries: ~$0.00001 per query
+---
 
 ## License
 
 MIT
-
-## Acknowledgments
-
-- [ChromaDB](https://www.trychroma.com/) for the vector database
-- [MCP](https://modelcontextprotocol.io/) for the protocol spec
-- [OpenAI](https://openai.com/) for embeddings
