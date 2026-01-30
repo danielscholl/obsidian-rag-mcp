@@ -53,6 +53,55 @@ python3.12 -m venv .venv
 3. **Chunking matters** - Markdown-aware chunking preserves document structure
 4. **Embeddings are cheap** - ~$0.02 for 132 docs with OpenAI
 
+### Phase 5: MCP Protocol Integration (18:20-18:25)
+**Problem:** MCP SDK's `stdio_server` is an async context manager, not a coroutine
+- Initial code: `asyncio.run(stdio_server(server))` ❌
+- Fixed code: `async with stdio_server() as streams:` ✅
+
+**Lesson:** Read SDK source code when docs are unclear. The MCP Python SDK is well-written but documentation is sparse.
+
+### Phase 6: GitHub Push (18:25)
+- Created public repo: https://github.com/claudiogarza/obsidian-rag-mcp
+- Pushed all code with clean commit history
+
+---
+
+## Final Project Stats
+
+| Metric | Value |
+|--------|-------|
+| Time to working prototype | ~25 minutes |
+| Lines of Python code | ~800 |
+| Sample RCA documents | 111 |
+| Total indexed chunks | 1,154 |
+| Embedding cost | ~$0.02 |
+| Dependencies | 50+ (ChromaDB brings many) |
+
+---
+
+## Challenges Encountered
+
+1. **Python 3.14 Compatibility**
+   - onnxruntime has no wheels for 3.14
+   - Solution: Use Python 3.12
+
+2. **ChromaDB API Changes**
+   - `$contains` filter removed in newer versions
+   - Solution: Use `where_document` for content filtering
+
+3. **MCP SDK Usage**
+   - Sparse documentation
+   - Solution: Read source code, trial and error
+
+---
+
+## What Went Well
+
+1. **OpenAI Embeddings** - Just worked, cheap, good quality
+2. **ChromaDB** - Local, fast, no external services
+3. **Markdown Chunking** - Preserving document structure improved search quality
+4. **Sample Data Generation** - Realistic RCAs made testing meaningful
+
 ---
 
 ## Notes for Report
