@@ -104,8 +104,50 @@ python3.12 -m venv .venv
 
 ---
 
+## Session 2: 2026-01-29 (Continued)
+
+### Phase 7: Code Review & Production Hardening (18:30-18:45)
+
+Conducted comprehensive code review and implemented production improvements:
+
+#### Tests Added (34 total)
+- `test_chunker.py` - 13 tests covering H2 splitting, code block preservation, tag extraction
+- `test_embedder.py` - 8 tests covering batching, retry logic, text cleaning
+- `test_engine.py` - 13 tests covering search, filtering, security
+
+#### Security Improvements
+- **Fixed path traversal timing issue** - Now checks path containment BEFORE existence (prevents information disclosure)
+- Added input validation for all MCP tools (bounds checking, sanitization)
+- Added query length limits (8k chars for queries, 30k for documents)
+
+#### Reliability Improvements
+- **Added retry logic** with exponential backoff for OpenAI API calls (tenacity)
+- Added proper logging throughout (replaced print() statements)
+- Added vault path validation on indexer initialization
+- Better error handling with specific exception types
+
+#### Code Quality
+- Fixed mutable default argument annotation (`Optional[list[str]]` instead of `list[str] = None`)
+- Added bounds checking for `top_k` (1-50) and `limit` (1-100) parameters
+- Added logging configuration for MCP server
+
+### Code Review Summary (by sub-agent)
+
+| Area | Grade | Notes |
+|------|-------|-------|
+| Code Quality | **B+** | Clean, but had some anti-patterns |
+| Architecture | **B+** | Sound choices, some coupling issues |
+| Error Handling | **C+** → **B+** | Improved with retries and validation |
+| Security | **B** → **A-** | Path traversal fixed |
+| Documentation | **A-** | Architecture doc is excellent |
+
+**Overall:** Solid MVP, now production-hardened.
+
+---
+
 ## Notes for Report
 - Document the Python version issue prominently
 - Include cost analysis
 - Show search quality examples
 - Discuss MCP integration approach
+- Highlight test coverage and security improvements
