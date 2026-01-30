@@ -1,0 +1,107 @@
+---
+title: "2025-11-15 - Deployment Rollback Required in order-service"
+date: 2025-11-15
+severity: P2
+services: [order-service, user-service]
+tags: [rca, p2, deployment]
+status: resolved
+duration_minutes: 168
+author: Backend Team
+---
+
+# 2025-11-15 - Deployment Rollback Required in order-service
+
+## Summary
+
+On 2025-11-15, the order-service service experienced a deployment rollback required. The incident lasted approximately 168 minutes and affected 8109 users and 2 dependent services.
+
+## Timeline
+
+| Time (UTC) | Event |
+|------------|-------|
+| 06:16 | Monitoring alert triggered |
+| 06:18 | On-call engineer paged |
+| 06:21 | Initial investigation started |
+| 06:26 | Root cause identified |
+| 07:56 | Mitigation applied |
+| 08:30 | Service recovery observed |
+| 09:04 | Incident resolved |
+
+## Root Cause
+
+
+The incident was caused by deployment rollback required in the order-service service.
+
+Investigation revealed multiple contributing factors:
+1. Recent code changes introduced a regression
+2. Test coverage did not include edge cases
+3. Monitoring gaps delayed detection
+
+
+## Impact
+
+
+- Service degradation: 73% of requests affected
+- Error rate spike: 24% (baseline: <1%)
+- Latency increase: p99 went from 391ms to 5306ms
+
+
+### Affected Services
+- order-service
+- user-service
+
+### Customer Impact
+
+- 1796 customer-facing errors
+- 71 support tickets created
+- Estimated revenue impact: $44523
+
+
+## Resolution
+
+
+1. Deployed hotfix to address the immediate issue
+2. Added regression tests for the affected code path
+3. Implemented additional monitoring and alerting
+4. Updated runbook with troubleshooting steps
+
+
+## Lessons Learned
+
+### What Went Well
+
+- Alert fired within 3 minutes of incident start
+- On-call response was quick (2 minutes)
+- Cross-team collaboration was effective
+- Communication to stakeholders was timely
+
+
+### What Could Be Improved  
+
+- Need better runbooks for deployment issues
+- Monitoring coverage gaps identified
+- Load testing should cover this scenario
+- Need automated rollback for faster recovery
+
+
+## Action Items
+
+
+| Priority | Action | Owner | Due Date |
+|----------|--------|-------|----------|
+| P1 | Implement monitoring for deployment rollback required | Backend Team | 2025-11-22 |
+| P2 | Update runbook | Platform Engineering | 2025-11-29 |
+| P2 | Add load test scenario | DevOps | 2025-12-06 |
+| P3 | Review similar services | Platform Engineering | 2025-12-15 |
+
+
+## Related Incidents
+
+
+- [[2025-11-15-previous-incident|Previous deployment incident]]
+- [[runbook-order-service|order-service Runbook]]
+- [[architecture-deployment|Deployment Architecture]]
+
+
+---
+*RCA prepared by Backend Team on 2025-11-16*
