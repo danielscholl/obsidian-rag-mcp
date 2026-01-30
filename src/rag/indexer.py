@@ -156,10 +156,14 @@ class VaultIndexer:
         return False
 
     def scan_vault(self) -> list[Path]:
-        """Scan vault for markdown files."""
+        """Scan vault for markdown files, skipping symlinks for security."""
         md_files = []
 
         for path in self.vault_path.rglob("*.md"):
+            # Skip symlinks to prevent reading files outside the vault
+            if path.is_symlink():
+                logger.debug(f"Skipping symlink: {path}")
+                continue
             if not self._should_ignore(path):
                 md_files.append(path)
 
@@ -182,6 +186,19 @@ class VaultIndexer:
         files_to_index: list[tuple[Path, str]] = []
 
         logger.info(f"Scanning {len(files)} files...")
+
+        # Clean up stale documents (files deleted from vault but still in index)
+        current_paths = {str(f.relative_to(self.vault_path)) for f in files}
+        stale_paths = set(self.file_hashes.keys()) - current_paths
+        if stale_paths:
+            logger.info(f"Removing {len(stale_paths)} stale documents from index...")
+            for stale_path in stale_paths:
+                try:
+                    self.collection.delete(where={"source_path": stale_path})
+                    del self.file_hashes[stale_path]
+                    logger.debug(f"Removed stale: {stale_path}")
+                except Exception as e:
+                    logger.debug(f"Failed to remove stale {stale_path}: {e}")
 
         # First pass: determine what needs indexing
         for file_path in files:

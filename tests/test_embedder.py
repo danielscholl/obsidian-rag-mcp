@@ -133,15 +133,17 @@ class TestOpenAIEmbedder:
 
         embedder = OpenAIEmbedder(api_key="test-key")
 
-        # Text with null bytes and excessive whitespace
-        dirty_text = "Hello\x00  World   Test"
+        # Text with null bytes and trailing whitespace
+        dirty_text = "Hello\x00 World  \nLine2  "
         embedder.embed_text(dirty_text)
 
         # Check the cleaned text was sent
         call_args = mock_client.embeddings.create.call_args
         sent_text = call_args.kwargs["input"][0]
-        assert "\x00" not in sent_text
-        assert "  " not in sent_text  # Double spaces removed
+        assert "\x00" not in sent_text  # Null bytes removed
+        # Note: we preserve internal whitespace now to maintain code structure
+        # but trailing whitespace on lines is stripped
+        assert not sent_text.endswith(" ")  # Trailing whitespace stripped
 
     @patch("src.rag.embedder.OpenAI")
     def test_embedding_dimension_property(self, mock_openai_class):

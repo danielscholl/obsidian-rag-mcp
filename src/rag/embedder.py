@@ -143,11 +143,15 @@ class OpenAIEmbedder:
         return [e for e in batch_embeddings if e is not None]
 
     def _clean_text(self, text: str, max_chars: int = 30000) -> str:
-        """Clean text for embedding."""
+        """Clean text for embedding while preserving code structure."""
+        import re
+
         # Remove null bytes
         text = text.replace("\x00", "")
-        # Normalize whitespace
-        text = " ".join(text.split())
+        # Dedupe excessive blank lines (3+ -> 2) but preserve structure
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        # Strip trailing whitespace from lines
+        text = "\n".join(line.rstrip() for line in text.split("\n"))
         # Truncate if too long
         if len(text) > max_chars:
             text = text[:max_chars]

@@ -130,14 +130,13 @@ def stats(vault: str, persist_dir: str):
 @click.option(
     "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
 )
-@click.option("--host", default="localhost", help="Server host")
-@click.option("--port", default=8765, help="Server port")
-def serve(vault: str, persist_dir: str, host: str, port: int):
-    """Start the MCP server."""
+def serve(vault: str, persist_dir: str):
+    """Start the MCP server (stdio transport)."""
     from src.mcp.server import run_server
 
     click.echo(f"Starting MCP server for vault: {vault}")
     click.echo(f"ChromaDB: {persist_dir}")
+    click.echo("Using stdio transport (for Claude Code integration)")
 
     run_server(
         vault_path=vault,
