@@ -1,11 +1,19 @@
 """
 RAG Engine - Query and retrieval for semantic search.
+
+Supports two modes:
+1. Basic RAG: Chunk-based semantic search (Phase 1)
+2. Reasoning-enhanced: Includes extracted conclusions (Phase 2)
 """
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .indexer import IndexerConfig, VaultIndexer
+from .reasoner import Conclusion, Reasoner, ReasonerConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -19,6 +27,7 @@ class SearchResult:
     tags: list[str]
     score: float  # Similarity score (0-1, higher is better)
     chunk_index: int
+    result_type: str = "chunk"  # "chunk" or "conclusion"
 
     def to_dict(self) -> dict:
         return {
@@ -29,6 +38,31 @@ class SearchResult:
             "tags": self.tags,
             "score": round(self.score, 4),
             "chunk_index": self.chunk_index,
+            "result_type": self.result_type,
+        }
+
+
+@dataclass
+class ConclusionResult:
+    """A conclusion search result."""
+
+    text: str
+    conclusion_type: str
+    certainty: str
+    source_paths: list[str]
+    premises: list[dict]
+    tags: list[str]
+    score: float
+
+    def to_dict(self) -> dict:
+        return {
+            "text": self.text,
+            "conclusion_type": self.conclusion_type,
+            "certainty": self.certainty,
+            "source_paths": self.source_paths,
+            "premises": self.premises,
+            "tags": self.tags,
+            "score": round(self.score, 4),
         }
 
 
@@ -39,13 +73,19 @@ class SearchResponse:
     query: str
     results: list[SearchResult]
     total_chunks_searched: int
+    conclusions: list[ConclusionResult] = field(default_factory=list)
+    total_conclusions_searched: int = 0
 
     def to_dict(self) -> dict:
-        return {
+        response = {
             "query": self.query,
             "results": [r.to_dict() for r in self.results],
             "total_chunks_searched": self.total_chunks_searched,
         }
+        if self.conclusions:
+            response["conclusions"] = [c.to_dict() for c in self.conclusions]
+            response["total_conclusions_searched"] = self.total_conclusions_searched
+        return response
 
 
 class RAGEngine:
@@ -56,6 +96,7 @@ class RAGEngine:
     - Semantic similarity search
     - Tag-based filtering
     - Result ranking and formatting
+    - Reasoning layer for conclusion extraction (Phase 2)
     """
 
     def __init__(
@@ -63,8 +104,11 @@ class RAGEngine:
         vault_path: str,
         persist_dir: str = ".chroma",
         api_key: str | None = None,
+        reasoning_enabled: bool = False,
+        reasoner_config: ReasonerConfig | None = None,
     ):
         self.vault_path = Path(vault_path).resolve()
+        self.reasoning_enabled = reasoning_enabled
 
         # Initialize indexer (which gives us access to ChromaDB)
         self.indexer = VaultIndexer(
@@ -78,6 +122,20 @@ class RAGEngine:
         # Use the same embedder for queries
         self.embedder = self.indexer.embedder
         self.collection = self.indexer.collection
+
+        # Initialize conclusions collection for Phase 2
+        self.conclusions_collection = self.indexer.chroma_client.get_or_create_collection(
+            name="conclusions",
+            metadata={"description": "Reasoned conclusions from documents"},
+        )
+
+        # Initialize reasoner if enabled
+        self.reasoner = None
+        if reasoning_enabled:
+            self.reasoner = Reasoner(
+                config=reasoner_config or ReasonerConfig(),
+                api_key=api_key,
+            )
 
     def search(
         self,
@@ -264,10 +322,187 @@ class RAGEngine:
 
         return file_info[:limit]
 
-    def index(self, force: bool = False):
-        """Index or reindex the vault."""
-        return self.indexer.index_vault(force=force)
+    def index(self, force: bool = False, with_reasoning: bool = False):
+        """
+        Index or reindex the vault.
+
+        Args:
+            force: Force full reindex even if unchanged
+            with_reasoning: Extract conclusions during indexing (Phase 2)
+
+        Returns:
+            IndexStats with indexing results
+        """
+        stats = self.indexer.index_vault(force=force)
+
+        if with_reasoning and self.reasoner:
+            self._index_with_reasoning()
+
+        return stats
+
+    def _index_with_reasoning(self):
+        """Extract and store conclusions from indexed chunks."""
+        if not self.reasoner:
+            logger.warning("Reasoner not initialized, skipping reasoning pass")
+            return
+
+        logger.info("Extracting conclusions from indexed chunks...")
+
+        # Get all documents from the collection
+        all_docs = self.collection.get(include=["documents", "metadatas"])
+
+        if not all_docs["ids"]:
+            logger.info("No documents to reason over")
+            return
+
+        # Clear existing conclusions
+        try:
+            existing = self.conclusions_collection.get()
+            if existing["ids"]:
+                self.conclusions_collection.delete(ids=existing["ids"])
+        except Exception:
+            pass
+
+        conclusion_count = 0
+        for i, (doc_id, content, metadata) in enumerate(
+            zip(all_docs["ids"], all_docs["documents"], all_docs["metadatas"])
+        ):
+            if not content:
+                continue
+
+            tags_str = metadata.get("tags", "")
+            tags = [t.strip() for t in tags_str.split(",") if t.strip()]
+
+            conclusions = self.reasoner.extract_conclusions(
+                content=content,
+                source_path=metadata.get("source_path", ""),
+                chunk_index=metadata.get("chunk_index", 0),
+                tags=tags,
+            )
+
+            for j, conclusion in enumerate(conclusions):
+                # Embed the conclusion text
+                embedding = self.embedder.embed_text(conclusion.text)
+
+                # Store in conclusions collection
+                self.conclusions_collection.add(
+                    ids=[f"{doc_id}_conclusion_{j}"],
+                    embeddings=[embedding],
+                    documents=[conclusion.text],
+                    metadatas=[
+                        {
+                            "conclusion_type": conclusion.conclusion_type.value,
+                            "certainty": conclusion.certainty,
+                            "source_paths": ",".join(conclusion.source_paths),
+                            "tags": ",".join(conclusion.tags),
+                            "premises": str(conclusion.to_dict()["premises"]),
+                        }
+                    ],
+                )
+                conclusion_count += 1
+
+            if (i + 1) % 10 == 0:
+                logger.info(f"Processed {i + 1} chunks, {conclusion_count} conclusions")
+
+        logger.info(f"Reasoning complete: {conclusion_count} conclusions extracted")
+
+    def search_conclusions(
+        self,
+        query: str,
+        top_k: int = 5,
+    ) -> list[ConclusionResult]:
+        """
+        Search extracted conclusions.
+
+        Args:
+            query: Natural language query
+            top_k: Maximum number of conclusions to return
+
+        Returns:
+            List of ConclusionResult objects
+        """
+        if self.conclusions_collection.count() == 0:
+            return []
+
+        query_embedding = self.embedder.embed_text(query)
+
+        results = self.conclusions_collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        conclusion_results = []
+        if results["ids"] and results["ids"][0]:
+            for i, doc_id in enumerate(results["ids"][0]):
+                distance = results["distances"][0][i]
+                score = 1 - distance
+
+                metadata = results["metadatas"][0][i]
+                text = results["documents"][0][i]
+
+                # Parse stored data
+                source_paths = metadata.get("source_paths", "").split(",")
+                tags = [t.strip() for t in metadata.get("tags", "").split(",") if t.strip()]
+
+                # Parse premises (stored as string representation)
+                try:
+                    import ast
+                    premises = ast.literal_eval(metadata.get("premises", "[]"))
+                except Exception:
+                    premises = []
+
+                conclusion_results.append(
+                    ConclusionResult(
+                        text=text,
+                        conclusion_type=metadata.get("conclusion_type", "unknown"),
+                        certainty=metadata.get("certainty", "unknown"),
+                        source_paths=source_paths,
+                        premises=premises,
+                        tags=tags,
+                        score=score,
+                    )
+                )
+
+        return conclusion_results
+
+    def search_with_reasoning(
+        self,
+        query: str,
+        top_k: int = 5,
+        include_conclusions: bool = True,
+    ) -> SearchResponse:
+        """
+        Search combining chunks and conclusions.
+
+        Args:
+            query: Natural language query
+            top_k: Maximum results per type
+            include_conclusions: Whether to include conclusions
+
+        Returns:
+            SearchResponse with both chunks and conclusions
+        """
+        # Get chunk results
+        response = self.search(query, top_k=top_k)
+
+        # Get conclusion results if enabled
+        conclusions = []
+        conclusions_count = 0
+        if include_conclusions and self.conclusions_collection.count() > 0:
+            conclusions = self.search_conclusions(query, top_k=top_k)
+            conclusions_count = self.conclusions_collection.count()
+
+        return SearchResponse(
+            query=response.query,
+            results=response.results,
+            total_chunks_searched=response.total_chunks_searched,
+            conclusions=conclusions,
+            total_conclusions_searched=conclusions_count,
+        )
 
     def get_stats(self):
-        """Get index statistics."""
-        return self.indexer.get_stats()
+        """Get index statistics including conclusions."""
+        stats = self.indexer.get_stats()
+        stats["conclusions_count"] = self.conclusions_collection.count()
+        return stats
