@@ -8,10 +8,14 @@ Splits documents into semantically meaningful chunks while preserving:
 - Obsidian-specific syntax (tags, links)
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
 
 import frontmatter
+import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -85,10 +89,16 @@ class MarkdownChunker:
         Returns:
             List of Chunk objects
         """
-        # Parse frontmatter
-        post = frontmatter.loads(content)
-        fm = dict(post.metadata)
-        body = post.content
+        # Parse frontmatter (with fallback for invalid YAML)
+        try:
+            post = frontmatter.loads(content)
+            fm = dict(post.metadata)
+            body = post.content
+        except yaml.YAMLError as e:
+            # Fallback: treat as plain content with no frontmatter
+            logger.warning(f"Failed to parse frontmatter in {source_path}: {e}")
+            fm = {}
+            body = content
 
         # Extract title from frontmatter or first H1
         title = fm.get("title")

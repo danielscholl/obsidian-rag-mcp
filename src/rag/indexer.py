@@ -39,6 +39,9 @@ class IndexerConfig:
             self.ignore_patterns = [
                 ".obsidian/*",
                 ".trash/*",
+                ".venv*/*",
+                ".git/*",
+                "node_modules/*",
                 "*.excalidraw.md",
             ]
 
