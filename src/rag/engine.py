@@ -1,11 +1,21 @@
 """
 RAG Engine - Query and retrieval for semantic search.
+
+Supports optional reasoning layer for enriched search with logical conclusions.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .indexer import IndexerConfig, VaultIndexer
+
+if TYPE_CHECKING:
+    from src.reasoning import ConclusionStore
+    from src.reasoning.extractor import ExtractorConfig
+    from src.reasoning.models import ConclusionType
 
 
 @dataclass
@@ -48,6 +58,50 @@ class SearchResponse:
         }
 
 
+@dataclass
+class ConclusionResult:
+    """A conclusion result for search_with_reasoning."""
+
+    id: str
+    type: str
+    statement: str
+    confidence: float
+    evidence: list[str]
+    source_path: str
+    heading: str | None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "type": self.type,
+            "statement": self.statement,
+            "confidence": round(self.confidence, 4),
+            "evidence": self.evidence,
+            "source_path": self.source_path,
+            "heading": self.heading,
+        }
+
+
+@dataclass
+class SearchWithReasoningResponse:
+    """Response from search_with_reasoning."""
+
+    query: str
+    results: list[SearchResult]
+    conclusions: list[ConclusionResult]
+    total_chunks_searched: int
+    total_conclusions_searched: int
+
+    def to_dict(self) -> dict:
+        return {
+            "query": self.query,
+            "results": [r.to_dict() for r in self.results],
+            "conclusions": [c.to_dict() for c in self.conclusions],
+            "total_chunks_searched": self.total_chunks_searched,
+            "total_conclusions_searched": self.total_conclusions_searched,
+        }
+
+
 class RAGEngine:
     """
     Query engine for semantic search over indexed vault.
@@ -56,6 +110,7 @@ class RAGEngine:
     - Semantic similarity search
     - Tag-based filtering
     - Result ranking and formatting
+    - Optional reasoning layer with conclusion search
     """
 
     def __init__(
@@ -63,14 +118,19 @@ class RAGEngine:
         vault_path: str,
         persist_dir: str = ".chroma",
         api_key: str | None = None,
+        reasoning_enabled: bool = False,
+        extractor_config: ExtractorConfig | None = None,
     ):
         self.vault_path = Path(vault_path).resolve()
+        self.reasoning_enabled = reasoning_enabled
 
         # Initialize indexer (which gives us access to ChromaDB)
         self.indexer = VaultIndexer(
             config=IndexerConfig(
                 vault_path=vault_path,
                 persist_dir=persist_dir,
+                reasoning_enabled=reasoning_enabled,
+                extractor_config=extractor_config,
             ),
             api_key=api_key,
         )
@@ -78,6 +138,9 @@ class RAGEngine:
         # Use the same embedder for queries
         self.embedder = self.indexer.embedder
         self.collection = self.indexer.collection
+
+        # Access reasoning components from indexer
+        self.conclusion_store: ConclusionStore | None = self.indexer.conclusion_store
 
     def search(
         self,
@@ -185,6 +248,86 @@ class RAGEngine:
             query=query,
             results=search_results,
             total_chunks_searched=self.collection.count(),
+        )
+
+    def search_with_reasoning(
+        self,
+        query: str,
+        top_k: int = 5,
+        conclusion_types: list[str] | None = None,
+        min_confidence: float = 0.0,
+        tags: list[str] | None = None,
+    ) -> SearchWithReasoningResponse:
+        """
+        Search with reasoning layer - returns chunks AND relevant conclusions.
+
+        Args:
+            query: Natural language search query
+            top_k: Maximum number of chunk results to return
+            conclusion_types: Filter conclusions by type ('deductive', 'inductive', 'abductive')
+            min_confidence: Minimum confidence for conclusions (0-1)
+            tags: Optional list of tags to filter by
+
+        Returns:
+            SearchWithReasoningResponse with chunks and conclusions
+        """
+        # First do regular search
+        search_response = self.search(query=query, top_k=top_k, tags=tags)
+
+        # If reasoning not enabled or no store, return without conclusions
+        if not self.conclusion_store:
+            return SearchWithReasoningResponse(
+                query=query,
+                results=search_response.results,
+                conclusions=[],
+                total_chunks_searched=search_response.total_chunks_searched,
+                total_conclusions_searched=0,
+            )
+
+        # Import ConclusionType for filtering
+        from src.reasoning.models import ConclusionType
+
+        # Parse conclusion type filter
+        type_filter: ConclusionType | None = None
+        if conclusion_types and len(conclusion_types) == 1:
+            try:
+                type_filter = ConclusionType(conclusion_types[0])
+            except ValueError:
+                pass  # Invalid type, ignore filter
+
+        # Search conclusions
+        raw_conclusions = self.conclusion_store.search(
+            query=query,
+            top_k=top_k,
+            conclusion_type=type_filter,
+            min_confidence=min_confidence,
+        )
+
+        # Filter by multiple types if specified
+        if conclusion_types and len(conclusion_types) > 1:
+            valid_types = set(conclusion_types)
+            raw_conclusions = [c for c in raw_conclusions if c.type.value in valid_types]
+
+        # Convert to ConclusionResult
+        conclusion_results = [
+            ConclusionResult(
+                id=c.id,
+                type=c.type.value,
+                statement=c.statement,
+                confidence=c.confidence,
+                evidence=c.evidence,
+                source_path=c.context.source_path,
+                heading=c.context.heading,
+            )
+            for c in raw_conclusions
+        ]
+
+        return SearchWithReasoningResponse(
+            query=query,
+            results=search_response.results,
+            conclusions=conclusion_results,
+            total_chunks_searched=search_response.total_chunks_searched,
+            total_conclusions_searched=self.conclusion_store.count(),
         )
 
     def get_note(self, path: str) -> str | None:

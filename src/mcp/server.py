@@ -217,6 +217,49 @@ TOOLS = [
         ),
         inputSchema={"type": "object", "properties": {}},
     ),
+    Tool(
+        name="search_with_reasoning",
+        description=(
+            "Search the vault with reasoning layer. Returns relevant document chunks "
+            "PLUS logical conclusions extracted from the content. Use this when you need "
+            "not just raw text but synthesized insights and patterns. Only available when "
+            "reasoning is enabled during indexing."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural language search query",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": f"Number of results to return (1-{MAX_TOP_K}, default: 5)",
+                    "default": 5,
+                    "minimum": MIN_TOP_K,
+                    "maximum": MAX_TOP_K,
+                },
+                "conclusion_types": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["deductive", "inductive", "abductive"]},
+                    "description": "Filter conclusions by type (default: all types)",
+                },
+                "min_confidence": {
+                    "type": "number",
+                    "description": "Minimum confidence for conclusions (0-1, default: 0)",
+                    "default": 0,
+                    "minimum": 0,
+                    "maximum": 1,
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional: filter by tags",
+                },
+            },
+            "required": ["query"],
+        },
+    ),
 ]
 
 
@@ -313,6 +356,43 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 content=[TextContent(type="text", text=json.dumps(stats.to_dict(), indent=2))]
             )
 
+        elif name == "search_with_reasoning":
+            query = validate_query(arguments["query"])
+            top_k = validate_top_k(arguments.get("top_k"))
+            tags = validate_tags(arguments.get("tags"))
+            conclusion_types = arguments.get("conclusion_types")
+            min_confidence = arguments.get("min_confidence", 0.0)
+
+            # Validate conclusion_types
+            if conclusion_types is not None:
+                if not isinstance(conclusion_types, list):
+                    conclusion_types = [conclusion_types]
+                valid_types = {"deductive", "inductive", "abductive"}
+                conclusion_types = [t for t in conclusion_types if t in valid_types]
+
+            # Validate min_confidence
+            try:
+                min_confidence = float(min_confidence)
+                min_confidence = max(0.0, min(1.0, min_confidence))
+            except (TypeError, ValueError):
+                min_confidence = 0.0
+
+            logger.info(
+                f"search_with_reasoning: query='{query[:50]}...', top_k={top_k}, "
+                f"types={conclusion_types}, min_conf={min_confidence}"
+            )
+
+            response = engine.search_with_reasoning(
+                query=query,
+                top_k=top_k,
+                conclusion_types=conclusion_types if conclusion_types else None,
+                min_confidence=min_confidence,
+                tags=tags if tags else None,
+            )
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(response.to_dict(), indent=2))]
+            )
+
         else:
             logger.warning(f"Unknown tool: {name}")
             return CallToolResult(
@@ -337,6 +417,7 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 def run_server(
     vault_path: str,
     persist_dir: str = ".chroma",
+    reasoning_enabled: bool = False,
 ):
     """
     Run the MCP server.
@@ -344,17 +425,20 @@ def run_server(
     Args:
         vault_path: Path to the Obsidian vault
         persist_dir: ChromaDB storage directory
+        reasoning_enabled: Enable reasoning layer for conclusion extraction
     """
     global _engine
 
     logger.info("Starting Obsidian RAG MCP server")
     logger.info(f"Vault path: {vault_path}")
     logger.info(f"Persist dir: {persist_dir}")
+    logger.info(f"Reasoning enabled: {reasoning_enabled}")
 
     # Initialize the RAG engine
     _engine = RAGEngine(
         vault_path=vault_path,
         persist_dir=persist_dir,
+        reasoning_enabled=reasoning_enabled,
     )
 
     # Create MCP server
@@ -388,8 +472,9 @@ def main():
 
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
     persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
+    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in ("true", "1", "yes")
 
-    run_server(vault_path, persist_dir)
+    run_server(vault_path, persist_dir, reasoning_enabled=reasoning_enabled)
 
 
 if __name__ == "__main__":
