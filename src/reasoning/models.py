@@ -12,7 +12,7 @@ from typing import Any
 
 class ConclusionType(Enum):
     """Types of logical conclusions that can be extracted.
-    
+
     Based on ADR-0004 Memory as Reasoning:
     - DEDUCTIVE: Logically certain given premises (if A→B and A, then B)
     - INDUCTIVE: Probable generalization from examples (pattern recognition)
@@ -26,7 +26,7 @@ class ConclusionType(Enum):
 @dataclass
 class ChunkContext:
     """Context information about a source chunk.
-    
+
     Provides metadata needed for conclusion extraction and tracing.
     """
     source_path: str
@@ -34,7 +34,7 @@ class ChunkContext:
     heading: str | None
     tags: list[str]
     chunk_index: int
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "source_path": self.source_path,
@@ -48,7 +48,7 @@ class ChunkContext:
 @dataclass
 class Conclusion:
     """A logical conclusion extracted from content.
-    
+
     Conclusions are the atomic units of reasoning - statements that
     can be derived from the source material with varying degrees
     of certainty.
@@ -60,11 +60,11 @@ class Conclusion:
     evidence: list[str]  # Supporting text snippets from source
     source_chunk_id: str  # ID of the chunk this was extracted from
     context: ChunkContext
-    
+
     # Optional metadata
     related_conclusions: list[str] = field(default_factory=list)  # IDs
     created_at: str | None = None
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
@@ -77,7 +77,7 @@ class Conclusion:
             "related_conclusions": self.related_conclusions,
             "created_at": self.created_at,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Conclusion":
         """Reconstruct a Conclusion from a dictionary."""
@@ -101,7 +101,7 @@ class EvidenceChunk:
     content: str
     relevance_score: float  # How relevant this evidence is (0-1)
     context: ChunkContext
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "chunk_id": self.chunk_id,
@@ -114,7 +114,7 @@ class EvidenceChunk:
 @dataclass
 class ReasoningTrace:
     """A trace showing how conclusions connect and support each other.
-    
+
     Traces provide explainability by showing the logical path
     from source evidence to derived conclusions.
     """
@@ -123,7 +123,7 @@ class ReasoningTrace:
     parent_conclusions: list[Conclusion]  # Conclusions this builds on
     child_conclusions: list[Conclusion]   # Conclusions derived from this
     confidence_path: float  # Combined confidence through the chain
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "conclusion": self.conclusion.to_dict(),
@@ -141,7 +141,7 @@ class ConnectedConclusion:
     relationship: str  # 'supports', 'contradicts', 'extends', 'similar'
     strength: float    # 0-1 relationship strength
     shared_evidence: list[str]  # Common source chunk IDs
-    
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "conclusion": self.conclusion.to_dict(),

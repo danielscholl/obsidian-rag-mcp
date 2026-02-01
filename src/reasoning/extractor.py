@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from openai import OpenAI
 
@@ -32,10 +32,13 @@ class ExtractorConfig:
     extract_abductive: bool = False  # Most speculative, off by default
 
 
-EXTRACTION_PROMPT = '''You are analyzing a chunk of text from a knowledge base to extract logical conclusions.
+EXTRACTION_PROMPT = '''Analyze this text and extract logical conclusions.
 
 For each conclusion, identify:
-1. The type: "deductive" (logically certain), "inductive" (pattern-based generalization), or "abductive" (best explanation)
+1. The type:
+   - "deductive" (logically certain)
+   - "inductive" (pattern-based generalization)
+   - "abductive" (best explanation)
 2. A clear, concise statement of the conclusion
 3. Confidence level (0.0 to 1.0)
 4. Key evidence phrases from the text that support this conclusion
@@ -74,13 +77,13 @@ If no meaningful conclusions can be extracted, return: {{"conclusions": []}}
 class ConclusionExtractor:
     """
     Extracts logical conclusions from text chunks using LLM.
-    
+
     Features:
     - Configurable conclusion types (deductive, inductive, abductive)
     - Confidence thresholds
     - Structured output with evidence tracking
     """
-    
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -88,14 +91,14 @@ class ConclusionExtractor:
     ):
         self.config = config or ExtractorConfig()
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
-        
+
         if not self.client.api_key:
             raise ValueError(
                 "OpenAI API key required. Set OPENAI_API_KEY environment variable."
             )
-        
+
         logger.debug(f"Initialized extractor with model={self.config.model}")
-    
+
     def extract_conclusions(
         self,
         chunk: str,
@@ -104,25 +107,25 @@ class ConclusionExtractor:
     ) -> list[Conclusion]:
         """
         Extract conclusions from a text chunk.
-        
+
         Args:
             chunk: The text content to analyze
             chunk_id: Unique identifier for the source chunk
             context: Metadata about the chunk's source
-            
+
         Returns:
             List of extracted conclusions
         """
         if not chunk or not chunk.strip():
             return []
-        
+
         # Build prompt
         abductive_instruction = (
             "- Hypotheses that best explain observations (abductive)"
             if self.config.extract_abductive
             else ""
         )
-        
+
         prompt = EXTRACTION_PROMPT.format(
             source_path=context.source_path,
             heading=context.heading or "(no heading)",
@@ -131,64 +134,71 @@ class ConclusionExtractor:
             max_conclusions=self.config.max_conclusions_per_chunk,
             abductive_instruction=abductive_instruction,
         )
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.config.model,
                 messages=[
-                    {"role": "system", "content": "You extract logical conclusions from text. Always respond with valid JSON."},
+                    {
+                        "role": "system",
+                        "content": "Extract conclusions from text. Respond with JSON.",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=self.config.temperature,
                 response_format={"type": "json_object"},
             )
-            
+
             content = response.choices[0].message.content
             if not content:
                 return []
-            
+
             # Parse response
             data = json.loads(content)
-            
+
             # Handle both array and object with array
             if isinstance(data, dict):
                 raw_conclusions = data.get("conclusions", [])
             else:
                 raw_conclusions = data
-            
+
             # Convert to Conclusion objects
             conclusions = []
-            now = datetime.now(timezone.utc).isoformat()
-            
+            now = datetime.now(UTC).isoformat()
+
             for raw in raw_conclusions:
                 # Skip if below confidence threshold
                 confidence = float(raw.get("confidence", 0))
                 if confidence < self.config.min_confidence:
                     continue
-                
+
                 # Skip empty statements
                 statement = raw.get("statement", "").strip()
                 if not statement:
                     continue
-                
+
                 # Parse conclusion type
                 type_str = raw.get("type", "deductive").lower()
                 try:
                     conclusion_type = ConclusionType(type_str)
                 except ValueError:
                     conclusion_type = ConclusionType.DEDUCTIVE
-                
+
                 # Skip types we're not extracting
-                if conclusion_type == ConclusionType.DEDUCTIVE and not self.config.extract_deductive:
+                is_deductive = conclusion_type == ConclusionType.DEDUCTIVE
+                is_inductive = conclusion_type == ConclusionType.INDUCTIVE
+                is_abductive = conclusion_type == ConclusionType.ABDUCTIVE
+
+                if is_deductive and not self.config.extract_deductive:
                     continue
-                if conclusion_type == ConclusionType.INDUCTIVE and not self.config.extract_inductive:
+                if is_inductive and not self.config.extract_inductive:
                     continue
-                if conclusion_type == ConclusionType.ABDUCTIVE and not self.config.extract_abductive:
+                if is_abductive and not self.config.extract_abductive:
                     continue
-                
+
                 # Generate unique ID
                 conclusion_id = self._generate_id(statement, chunk_id)
-                
+
                 conclusions.append(Conclusion(
                     id=conclusion_id,
                     type=conclusion_type,
@@ -199,17 +209,17 @@ class ConclusionExtractor:
                     context=context,
                     created_at=now,
                 ))
-            
+
             logger.debug(f"Extracted {len(conclusions)} conclusions from chunk {chunk_id}")
             return conclusions
-            
+
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse LLM response as JSON: {e}")
             return []
         except Exception as e:
             logger.error(f"Error extracting conclusions: {e}")
             return []
-    
+
     def _generate_id(self, statement: str, chunk_id: str) -> str:
         """Generate a unique ID for a conclusion."""
         content = f"{statement}:{chunk_id}"

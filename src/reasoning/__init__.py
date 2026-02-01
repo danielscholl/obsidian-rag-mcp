@@ -5,13 +5,13 @@ This module provides tools for extracting logical conclusions from indexed
 content and building reasoning traces that connect related concepts.
 """
 
-from .models import Conclusion, ConclusionType, ReasoningTrace, ChunkContext
-from .extractor import ConclusionExtractor
 from .conclusion_store import ConclusionStore
+from .extractor import ConclusionExtractor
+from .models import ChunkContext, Conclusion, ConclusionType, ReasoningTrace
 
 __all__ = [
     "Conclusion",
-    "ConclusionType", 
+    "ConclusionType",
     "ReasoningTrace",
     "ChunkContext",
     "ConclusionExtractor",

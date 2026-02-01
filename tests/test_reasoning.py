@@ -4,13 +4,13 @@ import json
 import tempfile
 from unittest.mock import Mock, patch
 
+from src.reasoning.conclusion_store import ConclusionStore
+from src.reasoning.extractor import ConclusionExtractor, ExtractorConfig
 from src.reasoning.models import (
     ChunkContext,
     Conclusion,
     ConclusionType,
 )
-from src.reasoning.extractor import ConclusionExtractor, ExtractorConfig
-from src.reasoning.conclusion_store import ConclusionStore
 
 
 class TestConclusionType:
@@ -236,8 +236,18 @@ class TestConclusionExtractor:
                 message=Mock(
                     content=json.dumps({
                         "conclusions": [
-                            {"type": "deductive", "statement": "High conf", "confidence": 0.9, "evidence": []},
-                            {"type": "deductive", "statement": "Low conf", "confidence": 0.3, "evidence": []},
+                            {
+                                "type": "deductive",
+                                "statement": "High conf",
+                                "confidence": 0.9,
+                                "evidence": [],
+                            },
+                            {
+                                "type": "deductive",
+                                "statement": "Low conf",
+                                "confidence": 0.3,
+                                "evidence": [],
+                            },
                         ]
                     })
                 )
