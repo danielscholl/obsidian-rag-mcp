@@ -94,7 +94,9 @@ class ConclusionExtractor:
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
 
         if not self.client.api_key:
-            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY environment variable.")
+            raise ValueError(
+                "OpenAI API key required. Set OPENAI_API_KEY environment variable."
+            )
 
         logger.debug(f"Initialized extractor with model={self.config.model}")
 
@@ -211,7 +213,9 @@ class ConclusionExtractor:
                     )
                 )
 
-            logger.debug(f"Extracted {len(conclusions)} conclusions from chunk {chunk_id}")
+            logger.debug(
+                f"Extracted {len(conclusions)} conclusions from chunk {chunk_id}"
+            )
             return conclusions
 
         except json.JSONDecodeError as e:

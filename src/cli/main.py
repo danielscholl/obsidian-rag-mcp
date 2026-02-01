@@ -21,7 +21,9 @@ def cli():
 @cli.command()
 @click.argument("vault_path", type=click.Path(exists=True))
 @click.option("--force", "-f", is_flag=True, help="Force reindex all files")
-@click.option("--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory")
+@click.option(
+    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+)
 def index(vault_path: str, force: bool, persist_dir: str):
     """Index an Obsidian vault for semantic search."""
     from src.rag import RAGEngine
@@ -59,7 +61,9 @@ def validate_top_k(ctx, param, value):
     required=True,
     help="Path to Obsidian vault",
 )
-@click.option("--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory")
+@click.option(
+    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+)
 @click.option(
     "--top-k",
     "-k",
@@ -69,7 +73,9 @@ def validate_top_k(ctx, param, value):
 )
 @click.option("--tags", "-t", multiple=True, help="Filter by tags")
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON")
-def search(query: str, vault: str, persist_dir: str, top_k: int, tags: tuple, json_output: bool):
+def search(
+    query: str, vault: str, persist_dir: str, top_k: int, tags: tuple, json_output: bool
+):
     """Search the vault semantically."""
     # Validate query is not empty
     if not query or not query.strip():
@@ -113,7 +119,9 @@ def search(query: str, vault: str, persist_dir: str, top_k: int, tags: tuple, js
     required=True,
     help="Path to Obsidian vault",
 )
-@click.option("--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory")
+@click.option(
+    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+)
 def stats(vault: str, persist_dir: str):
     """Show index statistics."""
     from src.rag import RAGEngine
@@ -138,7 +146,9 @@ def stats(vault: str, persist_dir: str):
     required=True,
     help="Path to Obsidian vault",
 )
-@click.option("--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory")
+@click.option(
+    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+)
 def serve(vault: str, persist_dir: str):
     """Start the MCP server (stdio transport)."""
     from src.mcp.server import run_server

@@ -502,7 +502,9 @@ class TestSearchWithReasoning:
     """Test search_with_reasoning functionality."""
 
     @patch("src.rag.engine.VaultIndexer")
-    def test_returns_empty_conclusions_when_reasoning_disabled(self, mock_indexer_class):
+    def test_returns_empty_conclusions_when_reasoning_disabled(
+        self, mock_indexer_class
+    ):
         """Test search_with_reasoning returns empty conclusions when disabled."""
         mock_indexer = Mock()
         mock_indexer_class.return_value = mock_indexer

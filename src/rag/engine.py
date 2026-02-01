@@ -306,7 +306,9 @@ class RAGEngine:
         # Filter by multiple types if specified
         if conclusion_types and len(conclusion_types) > 1:
             valid_types = set(conclusion_types)
-            raw_conclusions = [c for c in raw_conclusions if c.type.value in valid_types]
+            raw_conclusions = [
+                c for c in raw_conclusions if c.type.value in valid_types
+            ]
 
         # Convert to ConclusionResult
         conclusion_results = [
@@ -382,7 +384,9 @@ class RAGEngine:
         response = self.search(query_text, top_k=top_k + 5)
 
         # Filter out chunks from the same file
-        filtered_results = [r for r in response.results if r.source_path != path][:top_k]
+        filtered_results = [r for r in response.results if r.source_path != path][
+            :top_k
+        ]
 
         return SearchResponse(
             query=f"related to: {path}",

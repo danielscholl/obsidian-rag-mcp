@@ -241,7 +241,10 @@ TOOLS = [
                 },
                 "conclusion_types": {
                     "type": "array",
-                    "items": {"type": "string", "enum": ["deductive", "inductive", "abductive"]},
+                    "items": {
+                        "type": "string",
+                        "enum": ["deductive", "inductive", "abductive"],
+                    },
                     "description": "Filter conclusions by type (default: all types)",
                 },
                 "min_confidence": {
@@ -273,7 +276,9 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             top_k = validate_top_k(arguments.get("top_k"))
             tags = validate_tags(arguments.get("tags"))
 
-            logger.info(f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}")
+            logger.info(
+                f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}"
+            )
 
             response = engine.search(
                 query=query,
@@ -281,14 +286,22 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 tags=tags if tags else None,
             )
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(response.to_dict(), indent=2))]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
 
         elif name == "search_by_tag":
             tags = validate_tags(arguments.get("tags"))
             if not tags:
                 return CallToolResult(
-                    content=[TextContent(type="text", text="Error: At least one tag is required")],
+                    content=[
+                        TextContent(
+                            type="text", text="Error: At least one tag is required"
+                        )
+                    ],
                     isError=True,
                 )
 
@@ -308,7 +321,11 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 tags=tags,
             )
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(response.to_dict(), indent=2))]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
 
         elif name == "get_note":
@@ -335,7 +352,11 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 top_k=top_k,
             )
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(response.to_dict(), indent=2))]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
 
         elif name == "list_recent":
@@ -353,7 +374,9 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
             stats = engine.get_stats()
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(stats.to_dict(), indent=2))]
+                content=[
+                    TextContent(type="text", text=json.dumps(stats.to_dict(), indent=2))
+                ]
             )
 
         elif name == "search_with_reasoning":
@@ -390,7 +413,11 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 tags=tags if tags else None,
             )
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(response.to_dict(), indent=2))]
+                content=[
+                    TextContent(
+                        type="text", text=json.dumps(response.to_dict(), indent=2)
+                    )
+                ]
             )
 
         else:
@@ -457,7 +484,9 @@ def run_server(
 
     async def run():
         async with stdio_server() as (read_stream, write_stream):
-            await server.run(read_stream, write_stream, server.create_initialization_options())
+            await server.run(
+                read_stream, write_stream, server.create_initialization_options()
+            )
 
     asyncio.run(run())
 
@@ -472,7 +501,11 @@ def main():
 
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
     persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
-    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in ("true", "1", "yes")
+    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     run_server(vault_path, persist_dir, reasoning_enabled=reasoning_enabled)
 

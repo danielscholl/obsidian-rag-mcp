@@ -102,7 +102,8 @@ class TestOpenAIEmbedder:
             batch = kwargs["input"]
             response = Mock()
             response.data = [
-                Mock(index=i, embedding=[call_count[0] + i / 100] * 1536) for i in range(len(batch))
+                Mock(index=i, embedding=[call_count[0] + i / 100] * 1536)
+                for i in range(len(batch))
             ]
             call_count[0] += 1
             return response

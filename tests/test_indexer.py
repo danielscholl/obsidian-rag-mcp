@@ -162,7 +162,9 @@ class TestReasoningIndexer:
     @patch("src.reasoning.extractor.OpenAI")
     @patch("src.rag.indexer.OpenAIEmbedder")
     @patch("src.rag.indexer.chromadb.PersistentClient")
-    def test_reasoning_initialized_when_enabled(self, mock_chroma, mock_embedder, mock_openai):
+    def test_reasoning_initialized_when_enabled(
+        self, mock_chroma, mock_embedder, mock_openai
+    ):
         """Test reasoning components are initialized when enabled."""
         mock_client = Mock()
         mock_chroma.return_value = mock_client
@@ -192,7 +194,9 @@ class TestReasoningIndexer:
     @patch("src.reasoning.extractor.OpenAI")
     @patch("src.rag.indexer.OpenAIEmbedder")
     @patch("src.rag.indexer.chromadb.PersistentClient")
-    def test_index_stats_include_reasoning_info(self, mock_chroma, mock_embedder, mock_openai):
+    def test_index_stats_include_reasoning_info(
+        self, mock_chroma, mock_embedder, mock_openai
+    ):
         """Test index stats include conclusion count when reasoning enabled."""
         mock_client = Mock()
         mock_chroma.return_value = mock_client
@@ -225,7 +229,9 @@ class TestReasoningIndexer:
 
     @patch("src.rag.indexer.OpenAIEmbedder")
     @patch("src.rag.indexer.chromadb.PersistentClient")
-    def test_index_stats_exclude_reasoning_when_disabled(self, mock_chroma, mock_embedder):
+    def test_index_stats_exclude_reasoning_when_disabled(
+        self, mock_chroma, mock_embedder
+    ):
         """Test index stats don't include reasoning info when disabled."""
         mock_client = Mock()
         mock_chroma.return_value = mock_client

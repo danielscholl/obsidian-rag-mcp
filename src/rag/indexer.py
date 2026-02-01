@@ -303,7 +303,9 @@ class VaultIndexer:
                 try:
                     self.conclusion_store.delete_by_source(rel_path)
                 except Exception as e:
-                    logger.debug(f"Failed to delete old conclusions for {rel_path}: {e}")
+                    logger.debug(
+                        f"Failed to delete old conclusions for {rel_path}: {e}"
+                    )
 
             # Chunk the document
             chunks = self.chunker.chunk_document(content, rel_path)
