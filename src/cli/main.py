@@ -43,6 +43,15 @@ def index(vault_path: str, force: bool, persist_dir: str):
     click.echo(f"  Indexed at: {stats.indexed_at}")
 
 
+def validate_top_k(ctx, param, value):
+    """Validate top_k is within acceptable bounds."""
+    if value < 1:
+        raise click.BadParameter("must be at least 1")
+    if value > 50:
+        raise click.BadParameter("cannot exceed 50")
+    return value
+
+
 @cli.command()
 @click.argument("query")
 @click.option(
@@ -55,13 +64,23 @@ def index(vault_path: str, force: bool, persist_dir: str):
 @click.option(
     "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
 )
-@click.option("--top-k", "-k", default=5, help="Number of results to return")
+@click.option(
+    "--top-k",
+    "-k",
+    default=5,
+    callback=validate_top_k,
+    help="Number of results to return (1-50)",
+)
 @click.option("--tags", "-t", multiple=True, help="Filter by tags")
 @click.option("--json-output", "-j", is_flag=True, help="Output as JSON")
 def search(
     query: str, vault: str, persist_dir: str, top_k: int, tags: tuple, json_output: bool
 ):
     """Search the vault semantically."""
+    # Validate query is not empty
+    if not query or not query.strip():
+        raise click.UsageError("Query cannot be empty")
+
     from src.rag import RAGEngine
 
     engine = RAGEngine(
