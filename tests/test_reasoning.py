@@ -1,0 +1,419 @@
+"""Tests for the reasoning layer."""
+
+import json
+import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
+
+from src.reasoning.models import (
+    ChunkContext,
+    Conclusion,
+    ConclusionType,
+    EvidenceChunk,
+    ReasoningTrace,
+)
+from src.reasoning.extractor import ConclusionExtractor, ExtractorConfig
+from src.reasoning.conclusion_store import ConclusionStore
+
+
+class TestConclusionType:
+    """Test ConclusionType enum."""
+
+    def test_values(self):
+        """Test enum values."""
+        assert ConclusionType.DEDUCTIVE.value == "deductive"
+        assert ConclusionType.INDUCTIVE.value == "inductive"
+        assert ConclusionType.ABDUCTIVE.value == "abductive"
+
+    def test_from_string(self):
+        """Test creating from string."""
+        assert ConclusionType("deductive") == ConclusionType.DEDUCTIVE
+        assert ConclusionType("inductive") == ConclusionType.INDUCTIVE
+
+
+class TestChunkContext:
+    """Test ChunkContext dataclass."""
+
+    def test_creation(self):
+        """Test creating a context."""
+        ctx = ChunkContext(
+            source_path="notes/python.md",
+            title="Python Basics",
+            heading="Variables",
+            tags=["python", "tutorial"],
+            chunk_index=0,
+        )
+        assert ctx.source_path == "notes/python.md"
+        assert ctx.tags == ["python", "tutorial"]
+
+    def test_to_dict(self):
+        """Test serialization."""
+        ctx = ChunkContext(
+            source_path="test.md",
+            title="Test",
+            heading=None,
+            tags=[],
+            chunk_index=1,
+        )
+        d = ctx.to_dict()
+        assert d["source_path"] == "test.md"
+        assert d["heading"] is None
+
+
+class TestConclusion:
+    """Test Conclusion dataclass."""
+
+    def test_creation(self):
+        """Test creating a conclusion."""
+        ctx = ChunkContext(
+            source_path="test.md",
+            title="Test",
+            heading="Section",
+            tags=["tag1"],
+            chunk_index=0,
+        )
+        conclusion = Conclusion(
+            id="abc123",
+            type=ConclusionType.DEDUCTIVE,
+            statement="Python uses indentation for blocks",
+            confidence=0.95,
+            evidence=["indentation for blocks", "whitespace matters"],
+            source_chunk_id="chunk1",
+            context=ctx,
+        )
+        assert conclusion.type == ConclusionType.DEDUCTIVE
+        assert conclusion.confidence == 0.95
+        assert len(conclusion.evidence) == 2
+
+    def test_to_dict(self):
+        """Test serialization."""
+        ctx = ChunkContext(
+            source_path="test.md",
+            title="Test",
+            heading=None,
+            tags=[],
+            chunk_index=0,
+        )
+        conclusion = Conclusion(
+            id="xyz789",
+            type=ConclusionType.INDUCTIVE,
+            statement="Most Python files use .py extension",
+            confidence=0.8,
+            evidence=["observed pattern"],
+            source_chunk_id="chunk2",
+            context=ctx,
+        )
+        d = conclusion.to_dict()
+        assert d["type"] == "inductive"
+        assert d["confidence"] == 0.8
+
+    def test_from_dict(self):
+        """Test deserialization."""
+        data = {
+            "id": "test123",
+            "type": "deductive",
+            "statement": "Test statement",
+            "confidence": 0.9,
+            "evidence": ["evidence1"],
+            "source_chunk_id": "chunk1",
+            "context": {
+                "source_path": "test.md",
+                "title": "Test",
+                "heading": "H1",
+                "tags": ["a", "b"],
+                "chunk_index": 0,
+            },
+        }
+        conclusion = Conclusion.from_dict(data)
+        assert conclusion.id == "test123"
+        assert conclusion.type == ConclusionType.DEDUCTIVE
+        assert conclusion.context.heading == "H1"
+
+
+class TestExtractorConfig:
+    """Test ExtractorConfig."""
+
+    def test_defaults(self):
+        """Test default configuration."""
+        config = ExtractorConfig()
+        assert config.model == "gpt-4o-mini"
+        assert config.extract_deductive is True
+        assert config.extract_abductive is False
+
+    def test_custom(self):
+        """Test custom configuration."""
+        config = ExtractorConfig(
+            model="gpt-4o",
+            min_confidence=0.7,
+            extract_abductive=True,
+        )
+        assert config.model == "gpt-4o"
+        assert config.min_confidence == 0.7
+
+
+class TestConclusionExtractor:
+    """Test ConclusionExtractor with mocked OpenAI."""
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_extract_conclusions(self, mock_openai_class):
+        """Test extracting conclusions from a chunk."""
+        # Setup mock
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        mock_response = Mock()
+        mock_response.choices = [
+            Mock(
+                message=Mock(
+                    content=json.dumps([
+                        {
+                            "type": "deductive",
+                            "statement": "Python requires indentation",
+                            "confidence": 0.95,
+                            "evidence": ["uses indentation"],
+                        }
+                    ])
+                )
+            )
+        ]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        # Test
+        extractor = ConclusionExtractor(api_key="test-key")
+        ctx = ChunkContext(
+            source_path="python.md",
+            title="Python",
+            heading="Syntax",
+            tags=["python"],
+            chunk_index=0,
+        )
+
+        conclusions = extractor.extract_conclusions(
+            chunk="Python uses indentation for code blocks.",
+            chunk_id="chunk1",
+            context=ctx,
+        )
+
+        assert len(conclusions) == 1
+        assert conclusions[0].type == ConclusionType.DEDUCTIVE
+        assert conclusions[0].confidence == 0.95
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_empty_chunk_returns_empty(self, mock_openai_class):
+        """Test that empty chunks return no conclusions."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+        ctx = ChunkContext(
+            source_path="test.md",
+            title="Test",
+            heading=None,
+            tags=[],
+            chunk_index=0,
+        )
+
+        conclusions = extractor.extract_conclusions(
+            chunk="",
+            chunk_id="chunk1",
+            context=ctx,
+        )
+
+        assert conclusions == []
+        mock_client.chat.completions.create.assert_not_called()
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_filters_low_confidence(self, mock_openai_class):
+        """Test that low confidence conclusions are filtered."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        mock_response = Mock()
+        mock_response.choices = [
+            Mock(
+                message=Mock(
+                    content=json.dumps([
+                        {"type": "deductive", "statement": "High conf", "confidence": 0.9, "evidence": []},
+                        {"type": "deductive", "statement": "Low conf", "confidence": 0.3, "evidence": []},
+                    ])
+                )
+            )
+        ]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        config = ExtractorConfig(min_confidence=0.5)
+        extractor = ConclusionExtractor(api_key="test-key", config=config)
+        ctx = ChunkContext(
+            source_path="test.md",
+            title="Test",
+            heading=None,
+            tags=[],
+            chunk_index=0,
+        )
+
+        conclusions = extractor.extract_conclusions(
+            chunk="Some content",
+            chunk_id="chunk1",
+            context=ctx,
+        )
+
+        assert len(conclusions) == 1
+        assert conclusions[0].statement == "High conf"
+
+
+class TestConclusionStore:
+    """Test ConclusionStore with real ChromaDB (temp dir)."""
+
+    def test_add_and_get(self):
+        """Test adding and retrieving conclusions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            ctx = ChunkContext(
+                source_path="test.md",
+                title="Test",
+                heading="Section",
+                tags=["tag1"],
+                chunk_index=0,
+            )
+            conclusion = Conclusion(
+                id="test123",
+                type=ConclusionType.DEDUCTIVE,
+                statement="Test conclusion",
+                confidence=0.9,
+                evidence=["evidence"],
+                source_chunk_id="chunk1",
+                context=ctx,
+            )
+
+            store.add([conclusion])
+
+            retrieved = store.get("test123")
+            assert retrieved is not None
+            assert retrieved.statement == "Test conclusion"
+            assert retrieved.type == ConclusionType.DEDUCTIVE
+
+    def test_count(self):
+        """Test counting conclusions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+            assert store.count() == 0
+
+            ctx = ChunkContext(
+                source_path="test.md",
+                title="Test",
+                heading=None,
+                tags=[],
+                chunk_index=0,
+            )
+            conclusions = [
+                Conclusion(
+                    id=f"id{i}",
+                    type=ConclusionType.DEDUCTIVE,
+                    statement=f"Conclusion {i}",
+                    confidence=0.9,
+                    evidence=[],
+                    source_chunk_id="chunk1",
+                    context=ctx,
+                )
+                for i in range(3)
+            ]
+            store.add(conclusions)
+
+            assert store.count() == 3
+
+    def test_get_by_source(self):
+        """Test filtering by source file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            conclusions = []
+            for i, path in enumerate(["a.md", "a.md", "b.md"]):
+                ctx = ChunkContext(
+                    source_path=path,
+                    title="Test",
+                    heading=None,
+                    tags=[],
+                    chunk_index=0,
+                )
+                conclusions.append(
+                    Conclusion(
+                        id=f"id{i}",
+                        type=ConclusionType.DEDUCTIVE,
+                        statement=f"From {path}",
+                        confidence=0.9,
+                        evidence=[],
+                        source_chunk_id=f"chunk{i}",
+                        context=ctx,
+                    )
+                )
+            store.add(conclusions)
+
+            a_conclusions = store.get_by_source("a.md")
+            assert len(a_conclusions) == 2
+
+            b_conclusions = store.get_by_source("b.md")
+            assert len(b_conclusions) == 1
+
+    def test_delete_by_source(self):
+        """Test deleting by source file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            conclusions = []
+            for i, path in enumerate(["a.md", "a.md", "b.md"]):
+                ctx = ChunkContext(
+                    source_path=path,
+                    title="Test",
+                    heading=None,
+                    tags=[],
+                    chunk_index=0,
+                )
+                conclusions.append(
+                    Conclusion(
+                        id=f"id{i}",
+                        type=ConclusionType.DEDUCTIVE,
+                        statement=f"From {path}",
+                        confidence=0.9,
+                        evidence=[],
+                        source_chunk_id=f"chunk{i}",
+                        context=ctx,
+                    )
+                )
+            store.add(conclusions)
+
+            deleted = store.delete_by_source("a.md")
+            assert deleted == 2
+            assert store.count() == 1
+
+    def test_clear(self):
+        """Test clearing all conclusions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            ctx = ChunkContext(
+                source_path="test.md",
+                title="Test",
+                heading=None,
+                tags=[],
+                chunk_index=0,
+            )
+            store.add([
+                Conclusion(
+                    id="id1",
+                    type=ConclusionType.DEDUCTIVE,
+                    statement="Test",
+                    confidence=0.9,
+                    evidence=[],
+                    source_chunk_id="chunk1",
+                    context=ctx,
+                )
+            ])
+
+            assert store.count() == 1
+            store.clear()
+            assert store.count() == 0
