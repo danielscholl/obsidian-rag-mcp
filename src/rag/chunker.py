@@ -104,11 +104,7 @@ class MarkdownChunker:
         title = fm.get("title")
         if not title:
             h1_match = re.search(r"^# (.+)$", body, re.MULTILINE)
-            title = (
-                h1_match.group(1)
-                if h1_match
-                else source_path.split("/")[-1].replace(".md", "")
-            )
+            title = h1_match.group(1) if h1_match else source_path.split("/")[-1].replace(".md", "")
 
         # Extract tags from frontmatter and body
         tags = self._extract_tags(fm, body)
@@ -224,10 +220,7 @@ class MarkdownChunker:
 
         for para in paragraphs:
             # Check if adding this paragraph exceeds limit
-            if (
-                len(current_chunk) + len(para) > max_chars
-                and len(current_chunk) >= min_chars
-            ):
+            if len(current_chunk) + len(para) > max_chars and len(current_chunk) >= min_chars:
                 # Save current chunk
                 chunks.append(
                     Chunk(

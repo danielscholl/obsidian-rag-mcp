@@ -40,17 +40,13 @@ class OpenAIEmbedder:
     - Simple interface
     """
 
-    def __init__(
-        self, api_key: str | None = None, config: EmbedderConfig | None = None
-    ):
+    def __init__(self, api_key: str | None = None, config: EmbedderConfig | None = None):
         self.config = config or EmbedderConfig()
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
 
         # Validate API key
         if not self.client.api_key:
-            raise ValueError(
-                "OpenAI API key required. Set OPENAI_API_KEY environment variable."
-            )
+            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY environment variable.")
 
         logger.debug(f"Initialized embedder with model={self.config.model}")
 
@@ -68,9 +64,7 @@ class OpenAIEmbedder:
         result = self.embed_texts([text], is_query=is_query)
         return result[0]
 
-    def embed_texts(
-        self, texts: list[str], is_query: bool = False
-    ) -> list[list[float]]:
+    def embed_texts(self, texts: list[str], is_query: bool = False) -> list[list[float]]:
         """
         Embed multiple texts efficiently with batching.
 
@@ -85,9 +79,7 @@ class OpenAIEmbedder:
             return []
 
         all_embeddings = []
-        total_batches = (
-            len(texts) + self.config.batch_size - 1
-        ) // self.config.batch_size
+        total_batches = (len(texts) + self.config.batch_size - 1) // self.config.batch_size
 
         logger.debug(f"Embedding {len(texts)} texts in {total_batches} batches")
 
@@ -108,9 +100,7 @@ class OpenAIEmbedder:
         return all_embeddings
 
     @retry(
-        retry=retry_if_exception_type(
-            (RateLimitError, APIConnectionError, APITimeoutError)
-        ),
+        retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         before_sleep=before_sleep_log(logger, logging.WARNING),

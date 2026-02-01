@@ -239,9 +239,7 @@ class RAGEngine:
         response = self.search(query_text, top_k=top_k + 5)
 
         # Filter out chunks from the same file
-        filtered_results = [r for r in response.results if r.source_path != path][
-            :top_k
-        ]
+        filtered_results = [r for r in response.results if r.source_path != path][:top_k]
 
         return SearchResponse(
             query=f"related to: {path}",
