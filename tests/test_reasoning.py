@@ -163,16 +163,18 @@ class TestConclusionExtractor:
         mock_response.choices = [
             Mock(
                 message=Mock(
-                    content=json.dumps({
-                        "conclusions": [
-                            {
-                                "type": "deductive",
-                                "statement": "Python requires indentation",
-                                "confidence": 0.95,
-                                "evidence": ["uses indentation"],
-                            }
-                        ]
-                    })
+                    content=json.dumps(
+                        {
+                            "conclusions": [
+                                {
+                                    "type": "deductive",
+                                    "statement": "Python requires indentation",
+                                    "confidence": 0.95,
+                                    "evidence": ["uses indentation"],
+                                }
+                            ]
+                        }
+                    )
                 )
             )
         ]
@@ -234,22 +236,24 @@ class TestConclusionExtractor:
         mock_response.choices = [
             Mock(
                 message=Mock(
-                    content=json.dumps({
-                        "conclusions": [
-                            {
-                                "type": "deductive",
-                                "statement": "High conf",
-                                "confidence": 0.9,
-                                "evidence": [],
-                            },
-                            {
-                                "type": "deductive",
-                                "statement": "Low conf",
-                                "confidence": 0.3,
-                                "evidence": [],
-                            },
-                        ]
-                    })
+                    content=json.dumps(
+                        {
+                            "conclusions": [
+                                {
+                                    "type": "deductive",
+                                    "statement": "High conf",
+                                    "confidence": 0.9,
+                                    "evidence": [],
+                                },
+                                {
+                                    "type": "deductive",
+                                    "statement": "Low conf",
+                                    "confidence": 0.3,
+                                    "evidence": [],
+                                },
+                            ]
+                        }
+                    )
                 )
             )
         ]
@@ -412,17 +416,19 @@ class TestConclusionStore:
                 tags=[],
                 chunk_index=0,
             )
-            store.add([
-                Conclusion(
-                    id="id1",
-                    type=ConclusionType.DEDUCTIVE,
-                    statement="Test",
-                    confidence=0.9,
-                    evidence=[],
-                    source_chunk_id="chunk1",
-                    context=ctx,
-                )
-            ])
+            store.add(
+                [
+                    Conclusion(
+                        id="id1",
+                        type=ConclusionType.DEDUCTIVE,
+                        statement="Test",
+                        confidence=0.9,
+                        evidence=[],
+                        source_chunk_id="chunk1",
+                        context=ctx,
+                    )
+                ]
+            )
 
             assert store.count() == 1
             store.clear()
@@ -472,11 +478,13 @@ class TestConclusionStore:
             store = ConclusionStore(persist_dir=tmpdir)
 
             conclusions = []
-            for i, (ctype, conf) in enumerate([
-                (ConclusionType.DEDUCTIVE, 0.9),
-                (ConclusionType.INDUCTIVE, 0.7),
-                (ConclusionType.DEDUCTIVE, 0.5),
-            ]):
+            for i, (ctype, conf) in enumerate(
+                [
+                    (ConclusionType.DEDUCTIVE, 0.9),
+                    (ConclusionType.INDUCTIVE, 0.7),
+                    (ConclusionType.DEDUCTIVE, 0.5),
+                ]
+            ):
                 ctx = ChunkContext(
                     source_path="test.md",
                     title="Test",
@@ -484,15 +492,17 @@ class TestConclusionStore:
                     tags=[],
                     chunk_index=i,
                 )
-                conclusions.append(Conclusion(
-                    id=f"id{i}",
-                    type=ctype,
-                    statement=f"Conclusion {i} about testing",
-                    confidence=conf,
-                    evidence=[],
-                    source_chunk_id=f"chunk{i}",
-                    context=ctx,
-                ))
+                conclusions.append(
+                    Conclusion(
+                        id=f"id{i}",
+                        type=ctype,
+                        statement=f"Conclusion {i} about testing",
+                        confidence=conf,
+                        evidence=[],
+                        source_chunk_id=f"chunk{i}",
+                        context=ctx,
+                    )
+                )
             store.add(conclusions)
 
             # Filter by type

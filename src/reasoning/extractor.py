@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtractorConfig:
     """Configuration for the conclusion extractor."""
+
     model: str = "gpt-4o-mini"
     max_conclusions_per_chunk: int = 5
     min_confidence: float = 0.5
@@ -199,18 +200,22 @@ class ConclusionExtractor:
                 # Generate unique ID
                 conclusion_id = self._generate_id(statement, chunk_id)
 
-                conclusions.append(Conclusion(
-                    id=conclusion_id,
-                    type=conclusion_type,
-                    statement=statement,
-                    confidence=confidence,
-                    evidence=raw.get("evidence", []),
-                    source_chunk_id=chunk_id,
-                    context=context,
-                    created_at=now,
-                ))
+                conclusions.append(
+                    Conclusion(
+                        id=conclusion_id,
+                        type=conclusion_type,
+                        statement=statement,
+                        confidence=confidence,
+                        evidence=raw.get("evidence", []),
+                        source_chunk_id=chunk_id,
+                        context=context,
+                        created_at=now,
+                    )
+                )
 
-            logger.debug(f"Extracted {len(conclusions)} conclusions from chunk {chunk_id}")
+            logger.debug(
+                f"Extracted {len(conclusions)} conclusions from chunk {chunk_id}"
+            )
             return conclusions
 
         except json.JSONDecodeError as e:

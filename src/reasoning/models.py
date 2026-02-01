@@ -18,6 +18,7 @@ class ConclusionType(Enum):
     - INDUCTIVE: Probable generalization from examples (pattern recognition)
     - ABDUCTIVE: Best explanation for observations (hypothesis generation)
     """
+
     DEDUCTIVE = "deductive"
     INDUCTIVE = "inductive"
     ABDUCTIVE = "abductive"
@@ -29,6 +30,7 @@ class ChunkContext:
 
     Provides metadata needed for conclusion extraction and tracing.
     """
+
     source_path: str
     title: str
     heading: str | None
@@ -53,6 +55,7 @@ class Conclusion:
     can be derived from the source material with varying degrees
     of certainty.
     """
+
     id: str  # Unique identifier (hash of statement + source)
     type: ConclusionType
     statement: str  # The conclusion itself
@@ -97,6 +100,7 @@ class Conclusion:
 @dataclass
 class EvidenceChunk:
     """A chunk of text that serves as evidence for a conclusion."""
+
     chunk_id: str
     content: str
     relevance_score: float  # How relevant this evidence is (0-1)
@@ -118,10 +122,11 @@ class ReasoningTrace:
     Traces provide explainability by showing the logical path
     from source evidence to derived conclusions.
     """
+
     conclusion: Conclusion
     supporting_evidence: list[EvidenceChunk]
     parent_conclusions: list[Conclusion]  # Conclusions this builds on
-    child_conclusions: list[Conclusion]   # Conclusions derived from this
+    child_conclusions: list[Conclusion]  # Conclusions derived from this
     confidence_path: float  # Combined confidence through the chain
 
     def to_dict(self) -> dict[str, Any]:
@@ -137,9 +142,10 @@ class ReasoningTrace:
 @dataclass
 class ConnectedConclusion:
     """A conclusion with its relationship to another conclusion or query."""
+
     conclusion: Conclusion
     relationship: str  # 'supports', 'contradicts', 'extends', 'similar'
-    strength: float    # 0-1 relationship strength
+    strength: float  # 0-1 relationship strength
     shared_evidence: list[str]  # Common source chunk IDs
 
     def to_dict(self) -> dict[str, Any]:

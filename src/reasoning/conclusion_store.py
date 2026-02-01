@@ -70,19 +70,21 @@ class ConclusionStore:
         for conclusion in conclusions:
             ids.append(conclusion.id)
             documents.append(conclusion.statement)
-            metadatas.append({
-                "type": conclusion.type.value,
-                "confidence": conclusion.confidence,
-                "source_chunk_id": conclusion.source_chunk_id,
-                "source_path": conclusion.context.source_path,
-                "title": conclusion.context.title,
-                "heading": conclusion.context.heading or "",
-                "tags": ",".join(conclusion.context.tags),
-                "chunk_index": conclusion.context.chunk_index,
-                "evidence": json.dumps(conclusion.evidence),
-                "related_conclusions": ",".join(conclusion.related_conclusions),
-                "created_at": conclusion.created_at or "",
-            })
+            metadatas.append(
+                {
+                    "type": conclusion.type.value,
+                    "confidence": conclusion.confidence,
+                    "source_chunk_id": conclusion.source_chunk_id,
+                    "source_path": conclusion.context.source_path,
+                    "title": conclusion.context.title,
+                    "heading": conclusion.context.heading or "",
+                    "tags": ",".join(conclusion.context.tags),
+                    "chunk_index": conclusion.context.chunk_index,
+                    "evidence": json.dumps(conclusion.evidence),
+                    "related_conclusions": ",".join(conclusion.related_conclusions),
+                    "created_at": conclusion.created_at or "",
+                }
+            )
 
         # Generate embeddings if embedder provided
         if self.embedder:
@@ -200,11 +202,13 @@ class ConclusionStore:
         conclusions = []
         if results["ids"]:
             for i, cid in enumerate(results["ids"]):
-                conclusions.append(self._result_to_conclusion(
-                    cid,
-                    results["documents"][i],
-                    results["metadatas"][i],
-                ))
+                conclusions.append(
+                    self._result_to_conclusion(
+                        cid,
+                        results["documents"][i],
+                        results["metadatas"][i],
+                    )
+                )
 
         return conclusions
 
