@@ -2,6 +2,7 @@
 Vault indexer - scans, chunks, and indexes Obsidian vault content.
 """
 
+import fnmatch
 import hashlib
 import json
 import logging
@@ -135,26 +136,25 @@ class VaultIndexer:
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
     def _should_ignore(self, path: Path) -> bool:
-        """Check if a file should be ignored."""
+        """Check if a file should be ignored using glob pattern matching."""
         rel_path = str(path.relative_to(self.vault_path))
 
         if self.config.ignore_patterns is None:
             return False
 
         for pattern in self.config.ignore_patterns:
-            if pattern.endswith("/*"):
-                # Directory pattern
-                dir_name = pattern[:-2]
-                if rel_path.startswith(dir_name + "/") or rel_path.startswith(
-                    dir_name + os.sep
-                ):
-                    return True
-            elif pattern.startswith("*."):
-                # Extension pattern
-                if rel_path.endswith(pattern[1:]):
-                    return True
-            elif rel_path == pattern:
+            # Use fnmatch for glob-style pattern matching
+            if fnmatch.fnmatch(rel_path, pattern):
                 return True
+            # Also check each path component for directory patterns
+            parts = rel_path.split(os.sep)
+            for i, part in enumerate(parts):
+                # Check if any directory in path matches a directory pattern
+                partial_path = os.sep.join(parts[: i + 1])
+                if fnmatch.fnmatch(partial_path, pattern.rstrip("/*")):
+                    return True
+                if fnmatch.fnmatch(part, pattern.rstrip("/*")):
+                    return True
 
         return False
 
