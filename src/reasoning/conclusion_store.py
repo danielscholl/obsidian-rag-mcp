@@ -75,8 +75,10 @@ class ConclusionStore:
                 "confidence": conclusion.confidence,
                 "source_chunk_id": conclusion.source_chunk_id,
                 "source_path": conclusion.context.source_path,
+                "title": conclusion.context.title,
                 "heading": conclusion.context.heading or "",
                 "tags": ",".join(conclusion.context.tags),
+                "chunk_index": conclusion.context.chunk_index,
                 "evidence": json.dumps(conclusion.evidence),
                 "related_conclusions": ",".join(conclusion.related_conclusions),
                 "created_at": conclusion.created_at or "",
@@ -263,10 +265,10 @@ class ConclusionStore:
             source_chunk_id=metadata["source_chunk_id"],
             context=ChunkContext(
                 source_path=metadata["source_path"],
-                title="",  # Not stored in metadata
+                title=metadata.get("title", ""),
                 heading=metadata.get("heading") or None,
                 tags=tags,
-                chunk_index=0,  # Not stored in metadata
+                chunk_index=metadata.get("chunk_index", 0),
             ),
             related_conclusions=related,
             created_at=metadata.get("created_at") or None,

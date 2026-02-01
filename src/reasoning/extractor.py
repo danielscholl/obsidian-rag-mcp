@@ -55,17 +55,19 @@ Extract up to {max_conclusions} conclusions. Focus on:
 - Patterns that suggest general principles (inductive)
 {abductive_instruction}
 
-Respond with a JSON array of conclusions:
-[
-  {{
-    "type": "deductive|inductive|abductive",
-    "statement": "The conclusion statement",
-    "confidence": 0.85,
-    "evidence": ["supporting phrase 1", "supporting phrase 2"]
-  }}
-]
+Respond with a JSON object containing a "conclusions" array:
+{{
+  "conclusions": [
+    {{
+      "type": "deductive|inductive|abductive",
+      "statement": "The conclusion statement",
+      "confidence": 0.85,
+      "evidence": ["supporting phrase 1", "supporting phrase 2"]
+    }}
+  ]
+}}
 
-If no meaningful conclusions can be extracted, return an empty array: []
+If no meaningful conclusions can be extracted, return: {{"conclusions": []}}
 '''
 
 
@@ -164,6 +166,11 @@ class ConclusionExtractor:
                 if confidence < self.config.min_confidence:
                     continue
                 
+                # Skip empty statements
+                statement = raw.get("statement", "").strip()
+                if not statement:
+                    continue
+                
                 # Parse conclusion type
                 type_str = raw.get("type", "deductive").lower()
                 try:
@@ -180,7 +187,6 @@ class ConclusionExtractor:
                     continue
                 
                 # Generate unique ID
-                statement = raw.get("statement", "")
                 conclusion_id = self._generate_id(statement, chunk_id)
                 
                 conclusions.append(Conclusion(

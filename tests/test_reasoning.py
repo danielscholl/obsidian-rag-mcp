@@ -4,14 +4,10 @@ import json
 import tempfile
 from unittest.mock import Mock, patch
 
-import pytest
-
 from src.reasoning.models import (
     ChunkContext,
     Conclusion,
     ConclusionType,
-    EvidenceChunk,
-    ReasoningTrace,
 )
 from src.reasoning.extractor import ConclusionExtractor, ExtractorConfig
 from src.reasoning.conclusion_store import ConclusionStore
@@ -167,14 +163,16 @@ class TestConclusionExtractor:
         mock_response.choices = [
             Mock(
                 message=Mock(
-                    content=json.dumps([
-                        {
-                            "type": "deductive",
-                            "statement": "Python requires indentation",
-                            "confidence": 0.95,
-                            "evidence": ["uses indentation"],
-                        }
-                    ])
+                    content=json.dumps({
+                        "conclusions": [
+                            {
+                                "type": "deductive",
+                                "statement": "Python requires indentation",
+                                "confidence": 0.95,
+                                "evidence": ["uses indentation"],
+                            }
+                        ]
+                    })
                 )
             )
         ]
@@ -236,10 +234,12 @@ class TestConclusionExtractor:
         mock_response.choices = [
             Mock(
                 message=Mock(
-                    content=json.dumps([
-                        {"type": "deductive", "statement": "High conf", "confidence": 0.9, "evidence": []},
-                        {"type": "deductive", "statement": "Low conf", "confidence": 0.3, "evidence": []},
-                    ])
+                    content=json.dumps({
+                        "conclusions": [
+                            {"type": "deductive", "statement": "High conf", "confidence": 0.9, "evidence": []},
+                            {"type": "deductive", "statement": "Low conf", "confidence": 0.3, "evidence": []},
+                        ]
+                    })
                 )
             )
         ]
@@ -417,3 +417,111 @@ class TestConclusionStore:
             assert store.count() == 1
             store.clear()
             assert store.count() == 0
+
+    def test_search_without_embedder(self):
+        """Test text-based search without embedder."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            ctx = ChunkContext(
+                source_path="python.md",
+                title="Python",
+                heading="Basics",
+                tags=["python"],
+                chunk_index=0,
+            )
+            conclusions = [
+                Conclusion(
+                    id="id1",
+                    type=ConclusionType.DEDUCTIVE,
+                    statement="Python uses indentation for code blocks",
+                    confidence=0.95,
+                    evidence=["whitespace matters"],
+                    source_chunk_id="chunk1",
+                    context=ctx,
+                ),
+                Conclusion(
+                    id="id2",
+                    type=ConclusionType.INDUCTIVE,
+                    statement="Most Python files use .py extension",
+                    confidence=0.8,
+                    evidence=["observed pattern"],
+                    source_chunk_id="chunk2",
+                    context=ctx,
+                ),
+            ]
+            store.add(conclusions)
+
+            # Search should find relevant conclusions
+            results = store.search("indentation", top_k=5)
+            assert len(results) >= 1
+
+    def test_search_with_filters(self):
+        """Test search with type and confidence filters."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            conclusions = []
+            for i, (ctype, conf) in enumerate([
+                (ConclusionType.DEDUCTIVE, 0.9),
+                (ConclusionType.INDUCTIVE, 0.7),
+                (ConclusionType.DEDUCTIVE, 0.5),
+            ]):
+                ctx = ChunkContext(
+                    source_path="test.md",
+                    title="Test",
+                    heading=None,
+                    tags=[],
+                    chunk_index=i,
+                )
+                conclusions.append(Conclusion(
+                    id=f"id{i}",
+                    type=ctype,
+                    statement=f"Conclusion {i} about testing",
+                    confidence=conf,
+                    evidence=[],
+                    source_chunk_id=f"chunk{i}",
+                    context=ctx,
+                ))
+            store.add(conclusions)
+
+            # Filter by type
+            deductive = store.search(
+                "testing",
+                conclusion_type=ConclusionType.DEDUCTIVE,
+            )
+            assert all(c.type == ConclusionType.DEDUCTIVE for c in deductive)
+
+            # Filter by min confidence
+            high_conf = store.search("testing", min_confidence=0.8)
+            assert all(c.confidence >= 0.8 for c in high_conf)
+
+    def test_roundtrip_preserves_context(self):
+        """Test that title and chunk_index survive storage round-trip."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ConclusionStore(persist_dir=tmpdir)
+
+            ctx = ChunkContext(
+                source_path="guide.md",
+                title="Python Guide",
+                heading="Chapter 1",
+                tags=["python", "tutorial"],
+                chunk_index=5,
+            )
+            original = Conclusion(
+                id="roundtrip1",
+                type=ConclusionType.DEDUCTIVE,
+                statement="Test roundtrip",
+                confidence=0.9,
+                evidence=["evidence"],
+                source_chunk_id="chunk5",
+                context=ctx,
+            )
+            store.add([original])
+
+            retrieved = store.get("roundtrip1")
+            assert retrieved is not None
+            assert retrieved.context.title == "Python Guide"
+            assert retrieved.context.chunk_index == 5
+            assert retrieved.context.heading == "Chapter 1"
+            assert retrieved.context.tags == ["python", "tutorial"]

@@ -7,6 +7,7 @@ content and building reasoning traces that connect related concepts.
 
 from .models import Conclusion, ConclusionType, ReasoningTrace, ChunkContext
 from .extractor import ConclusionExtractor
+from .conclusion_store import ConclusionStore
 
 __all__ = [
     "Conclusion",
@@ -14,4 +15,5 @@ __all__ = [
     "ReasoningTrace",
     "ChunkContext",
     "ConclusionExtractor",
+    "ConclusionStore",
 ]
