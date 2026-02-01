@@ -176,3 +176,27 @@ class TestOpenAIEmbedder:
 
         with pytest.raises(ValueError, match="API key required"):
             OpenAIEmbedder()
+
+    @patch("src.rag.embedder.OpenAI")
+    def test_batch_mismatch_raises_error(self, mock_openai_class):
+        """Test that mismatched embedding count raises RuntimeError.
+
+        This catches the case where OpenAI filters/rejects some content,
+        preventing silent data corruption.
+        """
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        # Return fewer embeddings than inputs (simulating filtered content)
+        mock_response = Mock()
+        mock_response.data = [
+            Mock(index=0, embedding=[0.1] * 1536),
+            # Missing index 1 - simulates filtered content
+        ]
+        mock_client.embeddings.create.return_value = mock_response
+
+        embedder = OpenAIEmbedder(api_key="test-key")
+
+        with pytest.raises(RuntimeError, match="returned 1 embeddings for 2 inputs"):
+            embedder.embed_texts(["Hello", "World"])

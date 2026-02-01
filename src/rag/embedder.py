@@ -139,8 +139,14 @@ class OpenAIEmbedder:
         for item in response.data:
             batch_embeddings[item.index] = item.embedding
 
-        # Type narrowing - we know all slots are filled
-        return [e for e in batch_embeddings if e is not None]
+        # Verify we got all embeddings back - fail explicitly if count doesn't match
+        result = [e for e in batch_embeddings if e is not None]
+        if len(result) != len(batch):
+            raise RuntimeError(
+                f"OpenAI returned {len(result)} embeddings for {len(batch)} inputs. "
+                "This indicates content was filtered or an API error occurred."
+            )
+        return result
 
     def _clean_text(self, text: str, max_chars: int = 30000) -> str:
         """Clean text for embedding while preserving code structure."""
