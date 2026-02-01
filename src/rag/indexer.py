@@ -132,8 +132,12 @@ class VaultIndexer:
             logger.warning(f"Failed to save hash cache: {e}")
 
     def _compute_hash(self, content: str) -> str:
-        """Compute hash of file content."""
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
+        """Compute hash of file content.
+
+        Uses 32 hex chars (128 bits) to avoid birthday paradox collisions
+        with large vaults (100k+ files over time).
+        """
+        return hashlib.sha256(content.encode()).hexdigest()[:32]
 
     def _should_ignore(self, path: Path) -> bool:
         """Check if a file should be ignored using glob pattern matching."""
