@@ -91,13 +91,24 @@ class RAGEngine:
 
         Args:
             query: Natural language search query
-            top_k: Maximum number of results to return
+            top_k: Maximum number of results to return (1-50)
             tags: Optional list of tags to filter by (OR logic)
             min_score: Minimum similarity score (0-1)
 
         Returns:
             SearchResponse with ranked results
+
+        Raises:
+            ValueError: If query is empty or top_k is out of bounds
         """
+        # Validate inputs
+        if not query or not query.strip():
+            raise ValueError("Query cannot be empty")
+        if top_k < 1:
+            raise ValueError("top_k must be at least 1")
+        if top_k > 50:
+            raise ValueError("top_k cannot exceed 50")
+
         # Embed the query
         query_embedding = self.embedder.embed_text(query)
 

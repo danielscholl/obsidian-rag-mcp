@@ -349,3 +349,52 @@ class TestRAGEngine:
             content = engine.get_note("../../../etc/passwd")
 
             assert content is None
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_search_empty_query_raises_error(self, mock_indexer_class):
+        """Test that empty query raises ValueError."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+            )
+
+            import pytest
+
+            with pytest.raises(ValueError, match="Query cannot be empty"):
+                engine.search("")
+
+            with pytest.raises(ValueError, match="Query cannot be empty"):
+                engine.search("   ")
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_search_invalid_top_k_raises_error(self, mock_indexer_class):
+        """Test that invalid top_k values raise ValueError."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+            )
+
+            import pytest
+
+            with pytest.raises(ValueError, match="top_k must be at least 1"):
+                engine.search("valid query", top_k=0)
+
+            with pytest.raises(ValueError, match="top_k must be at least 1"):
+                engine.search("valid query", top_k=-1)
+
+            with pytest.raises(ValueError, match="top_k cannot exceed 50"):
+                engine.search("valid query", top_k=51)
