@@ -129,7 +129,12 @@ class VaultIndexer:
         self.hash_file = persist_path / "file_hashes.json"
         self.file_hashes = self._load_hashes()
 
+        # Load extraction cache (tracks which chunks have been processed)
+        self.extraction_cache_file = persist_path / "extraction_cache.json"
+        self.extraction_cache = self._load_extraction_cache()
+
         logger.debug(f"Loaded {len(self.file_hashes)} file hashes from cache")
+        logger.debug(f"Loaded {len(self.extraction_cache)} extraction cache entries")
 
         # Initialize reasoning layer if enabled
         self.conclusion_extractor: ConclusionExtractor | None = None
@@ -175,6 +180,25 @@ class VaultIndexer:
                 json.dump(self.file_hashes, f)
         except OSError as e:
             logger.warning(f"Failed to save hash cache: {e}")
+
+    def _load_extraction_cache(self) -> dict[str, bool]:
+        """Load extraction cache (tracks processed chunks)."""
+        if self.extraction_cache_file.exists():
+            try:
+                with open(self.extraction_cache_file) as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to load extraction cache: {e}")
+                return {}
+        return {}
+
+    def _save_extraction_cache(self):
+        """Save extraction cache."""
+        try:
+            with open(self.extraction_cache_file, "w") as f:
+                json.dump(self.extraction_cache, f)
+        except OSError as e:
+            logger.warning(f"Failed to save extraction cache: {e}")
 
     def _compute_hash(self, content: str) -> str:
         """Compute hash of file content.
@@ -416,10 +440,19 @@ class VaultIndexer:
 
         all_conclusions = []
 
-        # Prepare all chunk data
+        # Prepare chunk data, filtering out already-processed chunks
         chunk_data = []
+        cached_count = 0
+
         for chunk in chunks:
             chunk_id = f"{chunk.source_path}:{chunk.chunk_index}"
+            content_hash = self._compute_hash(chunk.content)
+
+            # Check if this chunk was already processed
+            if content_hash in self.extraction_cache:
+                cached_count += 1
+                continue
+
             context = ChunkContext(
                 source_path=chunk.source_path,
                 title=chunk.title or "",
@@ -427,21 +460,38 @@ class VaultIndexer:
                 tags=chunk.tags,
                 chunk_index=chunk.chunk_index,
             )
-            chunk_data.append((chunk.content, chunk_id, context))
+            chunk_data.append((chunk.content, chunk_id, context, content_hash))
+
+        if cached_count > 0:
+            logger.info(f"Skipped {cached_count} chunks (already extracted)")
+
+        if not chunk_data:
+            logger.info("All chunks already processed, skipping extraction")
+            return 0
 
         # Process in batches
         num_batches = (len(chunk_data) + batch_size - 1) // batch_size
+        processed_hashes = []
 
         for batch_idx in range(num_batches):
             start = batch_idx * batch_size
             end = min(start + batch_size, len(chunk_data))
             batch = chunk_data[start:end]
 
+            # Extract without content_hash for API call
+            batch_for_api = [(content, cid, ctx) for content, cid, ctx, _ in batch]
+            batch_hashes = [h for _, _, _, h in batch]
+
             try:
-                results = self.conclusion_extractor.extract_conclusions_batch(batch)
+                results = self.conclusion_extractor.extract_conclusions_batch(
+                    batch_for_api
+                )
 
                 for conclusions in results.values():
                     all_conclusions.extend(conclusions)
+
+                # Mark these chunks as processed
+                processed_hashes.extend(batch_hashes)
 
                 logger.debug(
                     f"Batch {batch_idx + 1}/{num_batches}: "
@@ -449,10 +499,10 @@ class VaultIndexer:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Batch {batch_idx + 1} failed: {e}, falling back to individual extraction"
+                    f"Batch {batch_idx + 1} failed: {e}, falling back to individual"
                 )
-                # Fallback to individual extraction for this batch
-                for content, chunk_id, context in batch:
+                # Fallback to individual extraction
+                for content, chunk_id, context, content_hash in batch:
                     try:
                         conclusions = self.conclusion_extractor.extract_conclusions(
                             chunk=content,
@@ -460,9 +510,15 @@ class VaultIndexer:
                             context=context,
                         )
                         all_conclusions.extend(conclusions)
+                        processed_hashes.append(content_hash)
                     except Exception as inner_e:
                         logger.warning(f"Failed to extract from {chunk_id}: {inner_e}")
                         continue
+
+        # Update extraction cache
+        for h in processed_hashes:
+            self.extraction_cache[h] = True
+        self._save_extraction_cache()
 
         # Store all conclusions
         if all_conclusions:
@@ -495,6 +551,10 @@ class VaultIndexer:
         )
         self.file_hashes = {}
         self._save_hashes()
+
+        # Clear extraction cache
+        self.extraction_cache = {}
+        self._save_extraction_cache()
 
         # Clear conclusions if reasoning is enabled
         if self.conclusion_store:
