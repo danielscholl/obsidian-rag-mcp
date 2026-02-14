@@ -19,10 +19,12 @@ from .models import ChunkContext, Conclusion, ConclusionType
 
 logger = logging.getLogger(__name__)
 
-# Rough token estimation (chars / 4 is reasonable for English)
-CHARS_PER_TOKEN = 4
+# Constants
+CHARS_PER_TOKEN = 4  # Rough token estimation for English text
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1.0  # seconds
+MAX_CHUNK_CHARS = 8000  # Max characters per chunk for single extraction
+SEARCH_OVERFETCH_MULTIPLIER = 2  # Fetch extra results for filtering
 
 
 def estimate_tokens(text: str) -> int:
@@ -207,7 +209,7 @@ class ConclusionExtractor:
             source_path=context.source_path,
             heading=context.heading or "(no heading)",
             tags=", ".join(context.tags) if context.tags else "(no tags)",
-            content=chunk[:8000],  # Limit content length
+            content=chunk[:MAX_CHUNK_CHARS],  # Limit content length
             max_conclusions=self.config.max_conclusions_per_chunk,
             abductive_instruction=abductive_instruction,
         )

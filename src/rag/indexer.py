@@ -150,9 +150,11 @@ class VaultIndexer:
             api_key=api_key,
             config=extractor_config,
         )
+        # Share ChromaDB client to avoid multiple connections
         self.conclusion_store = ConclusionStore(
             persist_dir=str(persist_path),
             embedder=self.embedder,
+            chroma_client=self.chroma_client,
         )
 
     def _load_hashes(self) -> dict[str, str]:
