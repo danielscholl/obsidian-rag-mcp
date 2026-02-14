@@ -820,3 +820,37 @@ class TestConclusionStore:
         where_clause = call_args.kwargs.get("where")
         assert where_clause is not None
         assert where_clause == {"type": "deductive"}
+
+    @patch("src.reasoning.conclusion_store.chromadb.PersistentClient")
+    def test_search_multiple_filters_uses_and_operator(self, mock_client_class):
+        """Test that multiple filters are combined with $and operator."""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+
+        mock_collection.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+
+        store = ConclusionStore(persist_dir="/tmp/test")
+
+        # Search with both conclusion_types and min_confidence
+        store.search(
+            "test query",
+            conclusion_types=[ConclusionType.DEDUCTIVE, ConclusionType.INDUCTIVE],
+            min_confidence=0.8,
+        )
+
+        # Verify the where clause uses $and operator with both filters
+        call_args = mock_collection.query.call_args
+        where_clause = call_args.kwargs.get("where")
+        assert where_clause is not None
+        assert "$and" in where_clause
+        assert len(where_clause["$and"]) == 2
+        assert {"type": {"$in": ["deductive", "inductive"]}} in where_clause["$and"]
+        assert {"confidence": {"$gte": 0.8}} in where_clause["$and"]

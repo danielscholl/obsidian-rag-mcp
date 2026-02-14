@@ -351,10 +351,24 @@ class ConclusionExtractor:
 
             # If chunk alone exceeds limit, truncate it
             if chunk_tokens > max_tokens // 2:
-                # Estimate chars to keep: ~4 chars per token as rough guide
-                max_chars = (max_tokens // 2) * 4
-                content = content[:max_chars]
-                chunk_tokens = estimate_tokens(content)
+                # Use binary search to find longest prefix within token limit
+                token_limit_for_chunk = max_tokens // 2
+                left, right = 0, len(content)
+                best_length = 0
+
+                while left <= right:
+                    mid = (left + right) // 2
+                    truncated = content[:mid]
+                    tokens = count_tokens(truncated)
+
+                    if tokens <= token_limit_for_chunk:
+                        best_length = mid
+                        left = mid + 1
+                    else:
+                        right = mid - 1
+
+                content = content[:best_length]
+                chunk_tokens = count_tokens(content)
 
             # Check if adding this chunk would exceed limit
             if total_tokens + chunk_tokens > max_tokens:
