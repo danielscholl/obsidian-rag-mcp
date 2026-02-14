@@ -338,27 +338,24 @@ class RAGEngine:
         from src.reasoning.models import ConclusionType
 
         # Parse conclusion type filter
-        type_filter: ConclusionType | None = None
-        if conclusion_types and len(conclusion_types) == 1:
-            try:
-                type_filter = ConclusionType(conclusion_types[0])
-            except ValueError:
-                pass  # Invalid type, ignore filter
+        type_filter_list: list[ConclusionType] | None = None
+        if conclusion_types:
+            valid_types = []
+            for type_str in conclusion_types:
+                try:
+                    valid_types.append(ConclusionType(type_str))
+                except ValueError:
+                    pass  # Invalid type, skip
+            if valid_types:
+                type_filter_list = valid_types
 
-        # Search conclusions
+        # Search conclusions with type filter pushed to ChromaDB
         raw_conclusions = self.conclusion_store.search(
             query=query,
             top_k=top_k,
-            conclusion_type=type_filter,
+            conclusion_types=type_filter_list,
             min_confidence=min_confidence,
         )
-
-        # Filter by multiple types if specified
-        if conclusion_types and len(conclusion_types) > 1:
-            valid_types = set(conclusion_types)
-            raw_conclusions = [
-                c for c in raw_conclusions if c.type.value in valid_types
-            ]
 
         # Convert to ConclusionResult with source chunks and related conclusions
         conclusion_results = []

@@ -354,6 +354,71 @@ class TestConclusionExtractor:
         # Only one API call for both chunks
         assert mock_client.chat.completions.create.call_count == 1
 
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_deterministic_ids_same_statement_different_chunks(self, mock_openai_class):
+        """Same statement from different chunks produces same ID."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        # Same statement, different chunk IDs
+        id1 = extractor._generate_id("Database error occurred", "chunk1")
+        id2 = extractor._generate_id("Database error occurred", "chunk2")
+        id3 = extractor._generate_id(
+            "Database error occurred", "totally-different-chunk"
+        )
+
+        assert id1 == id2
+        assert id2 == id3
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_deterministic_ids_different_statements(self, mock_openai_class):
+        """Different statements produce different IDs."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        id1 = extractor._generate_id("Database error occurred", "chunk1")
+        id2 = extractor._generate_id("Network connection failed", "chunk1")
+
+        assert id1 != id2
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_deterministic_ids_case_insensitive(self, mock_openai_class):
+        """IDs are case-insensitive for deduplication."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        id1 = extractor._generate_id("Database error", "chunk1")
+        id2 = extractor._generate_id("database error", "chunk1")
+        id3 = extractor._generate_id("DATABASE ERROR", "chunk2")
+
+        assert id1 == id2
+        assert id2 == id3
+
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_deterministic_ids_whitespace_normalized(self, mock_openai_class):
+        """IDs are whitespace-normalized for deduplication."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        id1 = extractor._generate_id("Database error", "chunk1")
+        id2 = extractor._generate_id("  Database error  ", "chunk1")
+        id3 = extractor._generate_id("Database error", "chunk2")
+
+        assert id1 == id2
+        assert id2 == id3
+
 
 class TestConclusionStore:
     """Test ConclusionStore with real ChromaDB (temp dir)."""
@@ -621,3 +686,137 @@ class TestConclusionStore:
             assert retrieved.context.chunk_index == 5
             assert retrieved.context.heading == "Chapter 1"
             assert retrieved.context.tags == ["python", "tutorial"]
+
+    @patch("src.reasoning.conclusion_store.chromadb.PersistentClient")
+    def test_search_confidence_filter_in_query(self, mock_client_class):
+        """Test that confidence filter is included in ChromaDB where clause."""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+
+        # Setup mock response
+        mock_collection.query.return_value = {
+            "ids": [["id1"]],
+            "documents": [["Test conclusion"]],
+            "metadatas": [
+                [
+                    {
+                        "type": "deductive",
+                        "confidence": 0.9,
+                        "source_chunk_id": "chunk1",
+                        "source_path": "test.md",
+                        "title": "Test",
+                        "heading": "",
+                        "tags": "",
+                        "chunk_index": 0,
+                        "evidence": "[]",
+                        "related_conclusions": "",
+                        "created_at": "",
+                    }
+                ]
+            ],
+            "distances": [[0.1]],
+        }
+
+        store = ConclusionStore(persist_dir="/tmp/test")
+
+        # Search with min_confidence
+        store.search("test query", min_confidence=0.8)
+
+        # Verify the where clause includes confidence filter
+        call_args = mock_collection.query.call_args
+        where_clause = call_args.kwargs.get("where")
+        assert where_clause is not None
+        assert where_clause == {"confidence": {"$gte": 0.8}}
+
+        # Verify n_results is exactly top_k (not top_k * 2)
+        n_results = call_args.kwargs.get("n_results")
+        assert n_results == 10  # default top_k
+
+    @patch("src.reasoning.conclusion_store.chromadb.PersistentClient")
+    def test_search_fetches_exact_top_k(self, mock_client_class):
+        """Test that search fetches exactly top_k results, not more."""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+
+        mock_collection.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+
+        store = ConclusionStore(persist_dir="/tmp/test")
+
+        # Search with specific top_k
+        store.search("test query", top_k=5)
+
+        # Verify n_results matches top_k exactly
+        call_args = mock_collection.query.call_args
+        n_results = call_args.kwargs.get("n_results")
+        assert n_results == 5
+
+    @patch("src.reasoning.conclusion_store.chromadb.PersistentClient")
+    def test_search_multi_type_uses_in_operator(self, mock_client_class):
+        """Test that multiple conclusion types use $in operator in ChromaDB."""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+
+        mock_collection.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+
+        store = ConclusionStore(persist_dir="/tmp/test")
+
+        # Search with multiple types
+        store.search(
+            "test query",
+            conclusion_types=[ConclusionType.DEDUCTIVE, ConclusionType.INDUCTIVE],
+        )
+
+        # Verify the where clause uses $in operator
+        call_args = mock_collection.query.call_args
+        where_clause = call_args.kwargs.get("where")
+        assert where_clause is not None
+        assert where_clause == {"type": {"$in": ["deductive", "inductive"]}}
+
+    @patch("src.reasoning.conclusion_store.chromadb.PersistentClient")
+    def test_search_single_type_from_list(self, mock_client_class):
+        """Test that single type in list doesn't use $in operator."""
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_collection = Mock()
+        mock_client.get_or_create_collection.return_value = mock_collection
+
+        mock_collection.query.return_value = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+
+        store = ConclusionStore(persist_dir="/tmp/test")
+
+        # Search with single type in list
+        store.search(
+            "test query",
+            conclusion_types=[ConclusionType.DEDUCTIVE],
+        )
+
+        # Verify the where clause is simple equality, not $in
+        call_args = mock_collection.query.call_args
+        where_clause = call_args.kwargs.get("where")
+        assert where_clause is not None
+        assert where_clause == {"type": "deductive"}

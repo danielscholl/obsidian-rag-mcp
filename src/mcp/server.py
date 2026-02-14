@@ -127,7 +127,8 @@ TOOLS = [
         name="search_by_tag",
         description=(
             "Search for documents with specific tags. Useful when you know the "
-            "category but want to explore related content."
+            "category but want to explore related content. "
+            "If no query is provided, tags are used as the semantic search query."
         ),
         inputSchema={
             "type": "object",
@@ -139,7 +140,10 @@ TOOLS = [
                 },
                 "query": {
                     "type": "string",
-                    "description": "Optional: additional semantic query to rank results",
+                    "description": (
+                        "Optional: semantic query to rank results. "
+                        "If omitted, tags are used as the query."
+                    ),
                 },
                 "top_k": {
                     "type": "integer",
@@ -372,6 +376,7 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
             else:
                 # If no query, use tags as semantic search
                 query = " ".join(tags)
+                logger.info(f"No query provided, using tags as query: {query}")
 
             logger.info(f"search_by_tag: tags={tags}, top_k={top_k}")
 
