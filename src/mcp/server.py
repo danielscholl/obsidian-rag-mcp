@@ -639,10 +639,13 @@ def run_server(
 
 def main():
     """Entry point for MCP server."""
-    # Configure logging for MCP server
+    # Configure logging to stderr (stdout is reserved for MCP JSON-RPC)
+    import sys
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        stream=sys.stderr,
     )
 
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
