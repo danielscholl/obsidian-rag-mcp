@@ -388,7 +388,10 @@ class VaultIndexer:
 
     def _extract_conclusions(self, chunks: list[Chunk]) -> int:
         """
-        Extract conclusions from chunks using LLM.
+        Extract conclusions from chunks using LLM with batch processing.
+
+        Uses batch extraction to reduce API calls by processing multiple
+        chunks per LLM request.
 
         Args:
             chunks: List of chunks to process
@@ -401,14 +404,20 @@ class VaultIndexer:
         if not self.conclusion_extractor or not self.conclusion_store:
             return 0
 
-        logger.info(f"Extracting conclusions from {len(chunks)} chunks...")
+        # Get batch size from extractor config
+        batch_size = self.conclusion_extractor.config.batch_size
+
+        logger.info(
+            f"Extracting conclusions from {len(chunks)} chunks "
+            f"(batch_size={batch_size})..."
+        )
 
         all_conclusions = []
 
-        for i, chunk in enumerate(chunks):
+        # Prepare all chunk data
+        chunk_data = []
+        for chunk in chunks:
             chunk_id = f"{chunk.source_path}:{chunk.chunk_index}"
-
-            # Build context for the extractor
             context = ChunkContext(
                 source_path=chunk.source_path,
                 title=chunk.title or "",
@@ -416,28 +425,48 @@ class VaultIndexer:
                 tags=chunk.tags,
                 chunk_index=chunk.chunk_index,
             )
+            chunk_data.append((chunk.content, chunk_id, context))
+
+        # Process in batches
+        num_batches = (len(chunk_data) + batch_size - 1) // batch_size
+
+        for batch_idx in range(num_batches):
+            start = batch_idx * batch_size
+            end = min(start + batch_size, len(chunk_data))
+            batch = chunk_data[start:end]
 
             try:
-                conclusions = self.conclusion_extractor.extract_conclusions(
-                    chunk=chunk.content,
-                    chunk_id=chunk_id,
-                    context=context,
-                )
-                all_conclusions.extend(conclusions)
+                results = self.conclusion_extractor.extract_conclusions_batch(batch)
 
-                if (i + 1) % 50 == 0:
-                    logger.debug(
-                        f"Processed {i + 1}/{len(chunks)} chunks, "
-                        f"{len(all_conclusions)} conclusions so far"
-                    )
+                for conclusions in results.values():
+                    all_conclusions.extend(conclusions)
+
+                logger.debug(
+                    f"Batch {batch_idx + 1}/{num_batches}: "
+                    f"extracted {sum(len(c) for c in results.values())} conclusions"
+                )
             except Exception as e:
-                logger.warning(f"Failed to extract conclusions from {chunk_id}: {e}")
-                continue
+                logger.warning(
+                    f"Batch {batch_idx + 1} failed: {e}, falling back to individual extraction"
+                )
+                # Fallback to individual extraction for this batch
+                for content, chunk_id, context in batch:
+                    try:
+                        conclusions = self.conclusion_extractor.extract_conclusions(
+                            chunk=content,
+                            chunk_id=chunk_id,
+                            context=context,
+                        )
+                        all_conclusions.extend(conclusions)
+                    except Exception as inner_e:
+                        logger.warning(f"Failed to extract from {chunk_id}: {inner_e}")
+                        continue
 
         # Store all conclusions
         if all_conclusions:
             self.conclusion_store.add(all_conclusions)
 
+        logger.info(f"Extracted {len(all_conclusions)} conclusions total")
         return len(all_conclusions)
 
     def get_stats(self) -> IndexStats:
