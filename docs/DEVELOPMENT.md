@@ -10,6 +10,8 @@ Get up and running with obsidian-rag-mcp locally.
 
 ## Quick Start
 
+### Linux / macOS
+
 ```bash
 # Clone
 git clone https://github.com/ed-insights-ai/obsidian-rag-mcp.git
@@ -28,10 +30,53 @@ uv run obsidian-rag index --vault ./vault
 uv run obsidian-rag search "database issues" --vault ./vault
 ```
 
+### Windows (PowerShell)
+
+```powershell
+# Clone
+git clone https://github.com/ed-insights-ai/obsidian-rag-mcp.git
+cd obsidian-rag-mcp
+
+# Install uv if needed
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Install dependencies
+uv sync
+
+# Set API key
+$env:OPENAI_API_KEY = "sk-..."
+
+# Index sample vault
+uv run obsidian-rag index --vault .\vault
+
+# Search
+uv run obsidian-rag search "database issues" --vault .\vault
+```
+
+### Windows (CMD)
+
+```cmd
+:: Clone
+git clone https://github.com/ed-insights-ai/obsidian-rag-mcp.git
+cd obsidian-rag-mcp
+
+:: Install dependencies
+uv sync
+
+:: Set API key
+set OPENAI_API_KEY=sk-...
+
+:: Index sample vault
+uv run obsidian-rag index --vault .\vault
+
+:: Search
+uv run obsidian-rag search "database issues" --vault .\vault
+```
+
 ## Running Tests
 
 ```bash
-# All tests
+# All tests (88 passing)
 uv run pytest
 
 # Specific module
@@ -64,26 +109,9 @@ Pre-commit hooks run automatically on commit.
 uv run obsidian-rag serve --vault /path/to/vault
 ```
 
-### With Claude Code
+### With Claude Desktop
 
-Add to `~/.claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "obsidian-rag": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/obsidian-rag-mcp", "obsidian-rag", "serve"],
-      "env": {
-        "VAULT_PATH": "/path/to/your/vault",
-        "OPENAI_API_KEY": "sk-..."
-      }
-    }
-  }
-}
-```
-
-Then restart Claude Code.
+See [CLAUDE_CODE_SETUP.md](CLAUDE_CODE_SETUP.md) for full instructions.
 
 ## Project Structure
 
@@ -101,7 +129,7 @@ src/
     ├── conclusion_store.py # ChromaDB storage
     └── models.py         # Data models
 
-tests/             # pytest tests
+tests/             # pytest tests (88 tests)
 vault/             # Sample Obsidian vault for testing
 docs/              # Documentation
 ```
@@ -114,7 +142,10 @@ Enable conclusion extraction with:
 uv run obsidian-rag index --vault ./vault --reasoning
 ```
 
-Or set `REASONING_ENABLED=true` environment variable.
+Or set environment variable:
+- Linux/macOS: `export REASONING_ENABLED=true`
+- Windows PowerShell: `$env:REASONING_ENABLED = "true"`
+- Windows CMD: `set REASONING_ENABLED=true`
 
 **Note:** Reasoning requires additional LLM calls and takes longer to index.
 
@@ -126,23 +157,41 @@ Run commands with `uv run` from the project root, not plain `python`.
 
 ### "OPENAI_API_KEY not set"
 
-```bash
-export OPENAI_API_KEY="sk-..."
-```
+Set the environment variable for your platform (see Quick Start above).
 
 ### ChromaDB errors
 
 Delete the `.chroma` directory and re-index:
 
 ```bash
+# Linux/macOS
 rm -rf .chroma
+
+# Windows PowerShell
+Remove-Item -Recurse -Force .chroma
+
+# Windows CMD
+rmdir /s /q .chroma
+```
+
+Then re-index:
+```bash
 uv run obsidian-rag index --vault ./vault
 ```
 
 ### Empty search results
 
-Make sure you indexed first. Check with:
+Make sure you indexed first:
 
 ```bash
 uv run obsidian-rag stats --vault ./vault
 ```
+
+### Windows: "uv not found"
+
+Install uv:
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Then restart your terminal.

@@ -2,35 +2,39 @@
 
 ## Overview
 
-This system provides semantic search capabilities over an Obsidian vault, exposed as an MCP (Model Context Protocol) server for integration with Claude Code and other MCP-compatible AI tools.
+Semantic search over markdown vaults, exposed as an MCP server for AI assistants.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Claude Code                               │
-│                            │                                     │
-│                      MCP Protocol                                │
-│                            │                                     │
-│                            ▼                                     │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Obsidian RAG MCP Server                     │   │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │   │
-│  │  │ MCP Layer   │  │ RAG Engine  │  │ Vault Indexer   │  │   │
-│  │  │ (Tools)     │◄─│ (Query)     │◄─│ (Watch/Index)   │  │   │
-│  │  └─────────────┘  └─────────────┘  └─────────────────┘  │   │
-│  │         │                │                  │            │   │
-│  │         │                ▼                  │            │   │
-│  │         │        ┌─────────────┐           │            │   │
-│  │         │        │  ChromaDB   │◄──────────┘            │   │
-│  │         │        │ (Vectors)   │                        │   │
-│  │         │        └─────────────┘                        │   │
-│  └─────────│────────────────────────────────────────────────┘   │
-│            │                                                     │
-│            ▼                                                     │
-│  ┌─────────────────────┐    ┌─────────────────────────────┐    │
-│  │  OpenAI Embeddings  │    │     Obsidian Vault          │    │
-│  │  (text-embedding-   │    │     (Markdown Files)        │    │
-│  │   3-small)          │    │                             │    │
-│  └─────────────────────┘    └─────────────────────────────┘    │
+│                     Claude Desktop / MCP Client                  │
+│                              │                                   │
+│                        MCP Protocol                              │
+│                              ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                 Obsidian RAG MCP Server                    │  │
+│  │                                                            │  │
+│  │   ┌──────────┐   ┌──────────┐   ┌──────────────────────┐  │  │
+│  │   │   MCP    │   │   RAG    │   │    Vault Indexer     │  │  │
+│  │   │  Tools   │◄──│  Engine  │◄──│  (scan/chunk/embed)  │  │  │
+│  │   └──────────┘   └────┬─────┘   └──────────────────────┘  │  │
+│  │                       │                    │               │  │
+│  │                       ▼                    ▼               │  │
+│  │              ┌─────────────────────────────────┐          │  │
+│  │              │          ChromaDB               │          │  │
+│  │              │   ┌─────────┐  ┌────────────┐   │          │  │
+│  │              │   │ Chunks  │  │ Conclusions│   │          │  │
+│  │              │   │(vectors)│  │ (Phase 2)  │   │          │  │
+│  │              │   └─────────┘  └────────────┘   │          │  │
+│  │              └─────────────────────────────────┘          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                              │                                   │
+│              ┌───────────────┴───────────────┐                  │
+│              ▼                               ▼                  │
+│    ┌──────────────────┐           ┌──────────────────┐         │
+│    │ OpenAI Embeddings│           │  Markdown Vault  │         │
+│    │ (text-embedding- │           │   (.md files)    │         │
+│    │  3-small)        │           │                  │         │
+│    └──────────────────┘           └──────────────────┘         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,171 +42,149 @@ This system provides semantic search capabilities over an Obsidian vault, expose
 
 ### 1. Vault Indexer (`src/rag/indexer.py`)
 
-**Responsibility:** Scan, chunk, and embed Obsidian vault content.
+Scans, chunks, and embeds vault content.
 
-**Key Features:**
-- Markdown-aware chunking (respects headers, code blocks, frontmatter)
-- Incremental indexing (only re-index changed files)
-- Metadata extraction (tags, frontmatter, links)
-- File watching for auto-reindex
-
-**Chunking Strategy:**
-- Split on H2 headers (`##`) as primary boundaries
-- Maximum chunk size: 1000 tokens
-- Overlap: 100 tokens between chunks
-- Preserve code blocks and tables as atomic units
+- **Markdown-aware chunking**: Respects headers, code blocks, frontmatter
+- **Incremental indexing**: Only re-indexes changed files (by content hash)
+- **Metadata extraction**: Tags, frontmatter, links
+- **Reasoning extraction**: Optional LLM-based conclusion extraction
 
 ### 2. RAG Engine (`src/rag/engine.py`)
 
-**Responsibility:** Query the vector database and retrieve relevant context.
+Query interface for semantic search.
 
-**Key Features:**
-- Semantic search with configurable top-k
-- Hybrid search (semantic + keyword for tags/metadata)
-- Re-ranking for improved relevance
-- Context assembly with source attribution
+- **Semantic search**: Vector similarity via ChromaDB
+- **Tag filtering**: Filter by Obsidian tags
+- **Reasoning search**: Search over extracted conclusions
+- **Source attribution**: All results link to source files
 
-**Query Pipeline:**
-1. Embed query using OpenAI
-2. Vector similarity search in ChromaDB
-3. Optional: Filter by metadata (tags, date range, path)
-4. Return ranked results with snippets and source paths
+### 3. Reasoning Layer (`src/reasoning/`)
 
-### 3. MCP Server (`src/mcp/server.py`)
+*Phase 2 feature* - Extracts logical conclusions from content.
 
-**Responsibility:** Expose RAG capabilities via MCP protocol.
+```
+src/reasoning/
+├── extractor.py       # LLM-based conclusion extraction
+├── conclusion_store.py # ChromaDB storage for conclusions
+└── models.py          # Conclusion, ConclusionType dataclasses
+```
 
-**Tools Provided:**
+**Conclusion types:**
+- `deductive`: Logically follows from premises
+- `inductive`: Pattern-based generalization
+- `abductive`: Best explanation inference
+
+**Features:**
+- Batch extraction (reduces API calls)
+- Extraction caching (skip unchanged chunks)
+- Confidence scoring
+- Source linking (conclusion → source chunk)
+
+### 4. MCP Server (`src/mcp/server.py`)
+
+Exposes RAG capabilities via MCP protocol.
+
+**Tools:**
 
 | Tool | Description |
 |------|-------------|
-| `search_vault` | Semantic search across all vault content |
-| `search_by_tag` | Search filtered by Obsidian tags |
-| `get_related` | Find notes related to a given note |
-| `get_note` | Retrieve full content of a specific note |
-| `list_recent` | List recently modified notes |
-| `index_status` | Check indexing status and stats |
+| `search_vault` | Semantic search across all content |
+| `search_by_tag` | Filter by Obsidian tags |
+| `get_note` | Retrieve full note content |
+| `get_related` | Find similar notes |
+| `list_recent` | Recently modified notes |
+| `index_status` | Index statistics |
+| `search_with_reasoning` | Search with conclusions |
+| `get_conclusion_trace` | Trace reasoning chain |
+| `explore_connected_conclusions` | Find related conclusions |
 
-**Resources Provided:**
-- `vault://stats` - Vault statistics (note count, index size, etc.)
+### 5. CLI (`src/cli/main.py`)
 
-### 4. CLI (`src/cli/main.py`)
+Command-line interface.
 
-**Responsibility:** Command-line interface for testing and management.
-
-**Commands:**
-- `index` - Index/reindex the vault
-- `search <query>` - Test semantic search
-- `serve` - Start MCP server
-- `stats` - Show index statistics
+```bash
+obsidian-rag index --vault /path     # Index vault
+obsidian-rag search "query"          # Search
+obsidian-rag serve --vault /path     # Start MCP server
+obsidian-rag stats --vault /path     # Show statistics
+```
 
 ## Data Flow
 
-### Indexing Flow
+### Indexing
 
 ```
-Obsidian Vault
-      │
-      ▼
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│ File Reader │───▶│ MD Chunker   │───▶│ Embedder    │
-│             │    │ + Metadata   │    │ (OpenAI)    │
-└─────────────┘    └──────────────┘    └─────────────┘
-                                              │
-                                              ▼
-                                       ┌─────────────┐
-                                       │  ChromaDB   │
-                                       │  (persist)  │
-                                       └─────────────┘
+Vault Files → Chunker → Embedder → ChromaDB
+                │
+                └──→ Extractor → Conclusions (if reasoning enabled)
 ```
 
-### Query Flow
+### Query
 
 ```
-User Query (via MCP)
-      │
-      ▼
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐
-│ Query       │───▶│ Embedder     │───▶│ ChromaDB    │
-│ Parser      │    │ (OpenAI)     │    │ (search)    │
-└─────────────┘    └──────────────┘    └─────────────┘
-                                              │
-                                              ▼
-                                       ┌─────────────┐
-                                       │ Ranker &    │
-                                       │ Formatter   │
-                                       └─────────────┘
-                                              │
-                                              ▼
-                                       Search Results
+Query → Embed → ChromaDB Search → Rank → Results
+                     │
+                     └──→ Conclusion Search (if reasoning enabled)
 ```
 
-## Technology Choices
+## Technology Stack
 
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| Language | Python 3.11+ | Rich ML ecosystem, MCP SDK support |
-| Vector DB | ChromaDB | Local, no external deps, good for <10k docs |
-| Embeddings | OpenAI text-embedding-3-small | Cost-effective, high quality |
-| MCP SDK | mcp (official Python SDK) | Official Anthropic SDK |
-| Markdown | mistune | Fast, extensible MD parser |
-
-## Security Considerations
-
-1. **API Keys**: Stored in environment variables, never committed
-2. **Local-first**: ChromaDB runs locally, no data leaves machine (except embeddings)
-3. **Input Validation**: All file paths validated against vault root
-4. **No Code Execution**: RAG is read-only, no eval/exec of vault content
-5. **Trusted Dependencies**: Only well-known packages from PyPI
+| Component | Choice | Why |
+|-----------|--------|-----|
+| Language | Python 3.11+ | MCP SDK, ML ecosystem |
+| Vector DB | ChromaDB | Local, embedded, simple |
+| Embeddings | OpenAI text-embedding-3-small | Quality + cost balance |
+| MCP | Official Python SDK | Anthropic standard |
+| Async | asyncio | Non-blocking MCP server |
 
 ## File Structure
 
 ```
 obsidian-rag-mcp/
 ├── src/
-│   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── indexer.py      # Vault scanning and indexing
-│   │   ├── chunker.py      # Markdown-aware chunking
-│   │   ├── embedder.py     # OpenAI embedding wrapper
-│   │   └── engine.py       # Query and retrieval
+│   ├── rag/              # Core RAG
+│   │   ├── indexer.py    # Vault indexing
+│   │   ├── chunker.py    # Markdown chunking
+│   │   ├── embedder.py   # OpenAI embeddings
+│   │   └── engine.py     # Search engine
+│   ├── reasoning/        # Phase 2: Conclusions
+│   │   ├── extractor.py
+│   │   ├── conclusion_store.py
+│   │   └── models.py
 │   ├── mcp/
-│   │   ├── __init__.py
-│   │   └── server.py       # MCP server implementation
+│   │   └── server.py     # MCP server
 │   └── cli/
-│       ├── __init__.py
-│       └── main.py         # CLI entry point
-├── tests/
-│   ├── test_indexer.py
-│   ├── test_chunker.py
-│   └── test_engine.py
-├── vault/                   # Sample vault for testing
-│   ├── RCAs/
-│   ├── Runbooks/
-│   └── Services/
-├── docs/
-│   ├── ARCHITECTURE.md     # This file
-│   └── SETUP.md            # Installation guide
-├── scripts/
-│   └── seed_vault.py       # Generate sample RCA documents
-├── pyproject.toml          # Project config
-├── README.md
-└── .env.example
+│       └── main.py       # CLI
+├── tests/                # 88 tests
+├── vault/                # Sample vault
+├── docs/                 # Documentation
+│   ├── ARCHITECTURE.md   # This file
+│   ├── DEVELOPMENT.md    # Local setup
+│   ├── CLAUDE_CODE_SETUP.md
+│   ├── INTEGRATION.md    # Integration guide
+│   └── decisions/        # ADRs
+└── pyproject.toml
 ```
 
-## Performance Targets
+## Security
 
-| Metric | Target |
-|--------|--------|
-| Index 100 notes | < 60 seconds |
-| Query latency | < 500ms |
-| Memory usage | < 500MB |
-| Embedding cost | ~$0.02 per full reindex |
+- **Local-first**: ChromaDB runs locally, vectors never leave machine
+- **API keys**: Environment variables only, never committed
+- **Path validation**: All file access validated against vault root
+- **Read-only**: No code execution, no file writes to vault
 
-## Future Enhancements
+## Performance
 
-1. **Local Embeddings**: Option to use sentence-transformers for offline/free operation
-2. **Incremental Sync**: Watch mode for real-time index updates
-3. **Graph Awareness**: Leverage Obsidian links for context expansion
-4. **Caching**: Query result caching for repeated questions
-5. **Multi-vault**: Support multiple vault sources
+| Metric | Target | Actual |
+|--------|--------|--------|
+| Index 100 notes | <60s | ~30s |
+| Query latency | <500ms | ~200ms |
+| Memory | <500MB | ~300MB |
+
+## Architecture Decision Records
+
+See `docs/decisions/` for rationale:
+- [ADR-0001](decisions/adr-0001-chromadb.md): ChromaDB as vector store
+- [ADR-0002](decisions/adr-0002-ci-health-checks.md): CI pipeline
+- [ADR-0003](decisions/adr-0003-openai-embeddings.md): OpenAI embeddings
+- [ADR-0004](decisions/adr-0004-memory-as-reasoning.md): Reasoning layer design
