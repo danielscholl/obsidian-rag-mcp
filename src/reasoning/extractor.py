@@ -15,12 +15,13 @@ from datetime import UTC, datetime
 
 from openai import APIError, OpenAI, RateLimitError
 
+from src.utils.tokens import count_tokens
+
 from .models import ChunkContext, Conclusion, ConclusionType
 
 logger = logging.getLogger(__name__)
 
 # Constants
-CHARS_PER_TOKEN = 4  # Rough token estimation for English text
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1.0  # seconds
 MAX_CHUNK_CHARS = 8000  # Max characters per chunk for single extraction
@@ -28,8 +29,8 @@ SEARCH_OVERFETCH_MULTIPLIER = 2  # Fetch extra results for filtering
 
 
 def estimate_tokens(text: str) -> int:
-    """Estimate token count from text length."""
-    return len(text) // CHARS_PER_TOKEN
+    """Count tokens in text using tiktoken."""
+    return count_tokens(text)
 
 
 @dataclass
@@ -300,9 +301,23 @@ class ConclusionExtractor:
             return []
 
     def _generate_id(self, statement: str, chunk_id: str) -> str:
-        """Generate a unique ID for a conclusion."""
-        content = f"{statement}:{chunk_id}"
-        return hashlib.sha256(content.encode()).hexdigest()[:32]
+        """Generate a deterministic ID for a conclusion.
+
+        IDs are based solely on the normalized statement text (lowercase,
+        stripped), ignoring the chunk_id. This ensures the same statement
+        extracted from different chunks produces the same ID, enabling
+        idempotent deduplication during reindexing.
+
+        Args:
+            statement: The conclusion statement text.
+            chunk_id: Source chunk ID (ignored for ID generation).
+
+        Returns:
+            32-character hex ID derived from the normalized statement.
+        """
+        # Normalize: lowercase and strip whitespace for case-insensitive dedup
+        normalized = statement.lower().strip()
+        return hashlib.sha256(normalized.encode()).hexdigest()[:32]
 
     def extract_conclusions_batch(
         self,
@@ -336,9 +351,24 @@ class ConclusionExtractor:
 
             # If chunk alone exceeds limit, truncate it
             if chunk_tokens > max_tokens // 2:
-                max_chars = (max_tokens // 2) * CHARS_PER_TOKEN
-                content = content[:max_chars]
-                chunk_tokens = estimate_tokens(content)
+                # Use binary search to find longest prefix within token limit
+                token_limit_for_chunk = max_tokens // 2
+                left, right = 0, len(content)
+                best_length = 0
+
+                while left <= right:
+                    mid = (left + right) // 2
+                    truncated = content[:mid]
+                    tokens = count_tokens(truncated)
+
+                    if tokens <= token_limit_for_chunk:
+                        best_length = mid
+                        left = mid + 1
+                    else:
+                        right = mid - 1
+
+                content = content[:best_length]
+                chunk_tokens = count_tokens(content)
 
             # Check if adding this chunk would exceed limit
             if total_tokens + chunk_tokens > max_tokens:

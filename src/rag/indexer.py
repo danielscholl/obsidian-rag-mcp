@@ -277,7 +277,10 @@ class VaultIndexer:
                     del self.file_hashes[stale_path]
                     logger.debug(f"Removed stale: {stale_path}")
                 except Exception as e:
-                    logger.debug(f"Failed to remove stale {stale_path}: {e}")
+                    logger.warning(
+                        f"Failed to remove stale document {stale_path}: {e}. "
+                        "Index may be inconsistent - consider reindexing with --force."
+                    )
 
         # First pass: determine what needs indexing
         for file_path in files:
@@ -321,16 +324,20 @@ class VaultIndexer:
                 # Collection might be empty or have no matching documents
                 pass
             except Exception as e:
-                # Log but don't fail - old chunks will be overwritten anyway
-                logger.debug(f"Failed to delete old chunks for {rel_path}: {e}")
+                # Log at WARNING - deletion failures may indicate index inconsistency
+                logger.warning(
+                    f"Failed to delete old chunks for {rel_path}: {e}. "
+                    "Index may be inconsistent - consider reindexing with --force."
+                )
 
             # Remove old conclusions if reasoning is enabled
             if self.conclusion_store:
                 try:
                     self.conclusion_store.delete_by_source(rel_path)
                 except Exception as e:
-                    logger.debug(
-                        f"Failed to delete old conclusions for {rel_path}: {e}"
+                    logger.warning(
+                        f"Failed to delete old conclusions for {rel_path}: {e}. "
+                        "Index may be inconsistent - consider reindexing with --force."
                     )
 
             # Chunk the document

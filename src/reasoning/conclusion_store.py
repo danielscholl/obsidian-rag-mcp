@@ -145,6 +145,7 @@ class ConclusionStore:
         query: str,
         top_k: int = 10,
         conclusion_type: ConclusionType | None = None,
+        conclusion_types: list[ConclusionType] | None = None,
         min_confidence: float = 0.0,
         source_path: str | None = None,
     ) -> list[Conclusion]:
@@ -154,56 +155,66 @@ class ConclusionStore:
         Args:
             query: Search query
             top_k: Maximum results to return
-            conclusion_type: Filter by type
+            conclusion_type: Filter by single type (deprecated, use conclusion_types)
+            conclusion_types: Filter by multiple types using $in operator
             min_confidence: Minimum confidence threshold
             source_path: Filter by source file
 
         Returns:
             List of matching conclusions
         """
-        # Build where clause
-        where = {}
-        if conclusion_type:
-            where["type"] = conclusion_type.value
+        # Build where clause with all filters
+        where_conditions = []
+
+        # Handle type filtering - prefer conclusion_types over conclusion_type
+        if conclusion_types and len(conclusion_types) > 0:
+            if len(conclusion_types) == 1:
+                where_conditions.append({"type": conclusion_types[0].value})
+            else:
+                type_values = [t.value for t in conclusion_types]
+                where_conditions.append({"type": {"$in": type_values}})
+        elif conclusion_type:
+            where_conditions.append({"type": conclusion_type.value})
         if source_path:
-            where["source_path"] = source_path
+            where_conditions.append({"source_path": source_path})
+        if min_confidence > 0:
+            where_conditions.append({"confidence": {"$gte": min_confidence}})
+
+        # Combine conditions with $and if multiple, or use single condition
+        if len(where_conditions) == 0:
+            where = None
+        elif len(where_conditions) == 1:
+            where = where_conditions[0]
+        else:
+            where = {"$and": where_conditions}
 
         # Query with embedding if available
         if self.embedder:
             query_embedding = self.embedder.embed_text(query)
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=top_k * 2,  # Get extra for filtering
-                where=where if where else None,
+                n_results=top_k,
+                where=where,
                 include=["documents", "metadatas", "distances"],
             )
         else:
             # Fall back to text search
             results = self.collection.query(
                 query_texts=[query],
-                n_results=top_k * 2,
-                where=where if where else None,
+                n_results=top_k,
+                where=where,
                 include=["documents", "metadatas", "distances"],
             )
 
         conclusions = []
         if results["ids"] and results["ids"][0]:
             for i, cid in enumerate(results["ids"][0]):
-                metadata = results["metadatas"][0][i]
-
-                # Filter by confidence
-                if metadata["confidence"] < min_confidence:
-                    continue
-
                 conclusion = self._result_to_conclusion(
                     cid,
                     results["documents"][0][i],
-                    metadata,
+                    results["metadatas"][0][i],
                 )
                 conclusions.append(conclusion)
-
-                if len(conclusions) >= top_k:
-                    break
 
         return conclusions
 

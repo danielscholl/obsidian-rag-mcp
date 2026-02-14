@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 import frontmatter
 import yaml
 
+from src.utils.tokens import count_tokens
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,8 +40,8 @@ class Chunk:
 
     @property
     def token_estimate(self) -> int:
-        """Rough token count estimate (4 chars per token)."""
-        return len(self.content) // 4
+        """Accurate token count using tiktoken."""
+        return count_tokens(self.content)
 
 
 @dataclass
