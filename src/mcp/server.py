@@ -263,6 +263,66 @@ TOOLS = [
             "required": ["query"],
         },
     ),
+    Tool(
+        name="get_conclusion_trace",
+        description=(
+            "Get the reasoning trace for a specific conclusion. Shows the evidence chain: "
+            "source chunk -> conclusion -> related conclusions. Use this to understand "
+            "WHY a conclusion was drawn and what evidence supports it."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "conclusion_id": {
+                    "type": "string",
+                    "description": "ID of the conclusion to trace",
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Maximum depth for finding related conclusions (default: 3)",
+                    "default": 3,
+                    "minimum": 1,
+                    "maximum": 10,
+                },
+            },
+            "required": ["conclusion_id"],
+        },
+    ),
+    Tool(
+        name="explore_connected_conclusions",
+        description=(
+            "Explore conclusions related to a query or another conclusion. Use this to "
+            "discover what else the system knows about a topic or find connections "
+            "between different pieces of knowledge."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Text query to find related conclusions",
+                },
+                "conclusion_id": {
+                    "type": "string",
+                    "description": "ID of conclusion to find related ones (alternative to query)",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": f"Maximum conclusions to return (1-{MAX_TOP_K}, default: 10)",
+                    "default": 10,
+                    "minimum": MIN_TOP_K,
+                    "maximum": MAX_TOP_K,
+                },
+                "min_confidence": {
+                    "type": "number",
+                    "description": "Minimum confidence threshold (0-1, default: 0)",
+                    "default": 0,
+                    "minimum": 0,
+                    "maximum": 1,
+                },
+            },
+        },
+    ),
 ]
 
 
@@ -418,6 +478,92 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                         type="text", text=json.dumps(response.to_dict(), indent=2)
                     )
                 ]
+            )
+
+        elif name == "get_conclusion_trace":
+            conclusion_id = arguments.get("conclusion_id")
+            if not conclusion_id:
+                return CallToolResult(
+                    content=[
+                        TextContent(
+                            type="text", text="Error: conclusion_id is required"
+                        )
+                    ],
+                    isError=True,
+                )
+
+            max_depth = arguments.get("max_depth", 3)
+            try:
+                max_depth = int(max_depth)
+                max_depth = max(1, min(10, max_depth))
+            except (TypeError, ValueError):
+                max_depth = 3
+
+            logger.info(
+                f"get_conclusion_trace: id='{conclusion_id[:20]}...', depth={max_depth}"
+            )
+
+            trace = engine.get_conclusion_trace(
+                conclusion_id=conclusion_id,
+                max_depth=max_depth,
+            )
+
+            if trace is None:
+                return CallToolResult(
+                    content=[
+                        TextContent(
+                            type="text",
+                            text=f"Conclusion not found: {conclusion_id}",
+                        )
+                    ],
+                    isError=True,
+                )
+
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(trace, indent=2))]
+            )
+
+        elif name == "explore_connected_conclusions":
+            query = arguments.get("query")
+            conclusion_id = arguments.get("conclusion_id")
+
+            if not query and not conclusion_id:
+                return CallToolResult(
+                    content=[
+                        TextContent(
+                            type="text",
+                            text="Error: Either query or conclusion_id is required",
+                        )
+                    ],
+                    isError=True,
+                )
+
+            top_k = validate_top_k(arguments.get("top_k"), default=10)
+
+            min_confidence = arguments.get("min_confidence", 0.0)
+            try:
+                min_confidence = float(min_confidence)
+                min_confidence = max(0.0, min(1.0, min_confidence))
+            except (TypeError, ValueError):
+                min_confidence = 0.0
+
+            if query:
+                query = validate_query(query)
+
+            logger.info(
+                f"explore_connected_conclusions: query='{query[:30] if query else None}', "
+                f"id='{conclusion_id[:20] if conclusion_id else None}', top_k={top_k}"
+            )
+
+            connected = engine.explore_connected_conclusions(
+                query=query,
+                conclusion_id=conclusion_id,
+                top_k=top_k,
+                min_confidence=min_confidence,
+            )
+
+            return CallToolResult(
+                content=[TextContent(type="text", text=json.dumps(connected, indent=2))]
             )
 
         else:
