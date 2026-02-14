@@ -109,7 +109,11 @@ Then ask Claude things like:
 3. **Query**: Your question gets embedded, matched against stored vectors, ranked results returned
 4. **Reasoning** (optional): Extract conclusions from notes at index time for richer search results
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design, or [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local setup.
+**Documentation:**
+- [Architecture](docs/ARCHITECTURE.md) - System design
+- [Development](docs/DEVELOPMENT.md) - Local setup (includes Windows)
+- [Claude Desktop](docs/CLAUDE_CODE_SETUP.md) - MCP integration
+- [Integration](docs/INTEGRATION.md) - Use with other agents/pipelines
 
 ---
 
