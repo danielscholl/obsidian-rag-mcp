@@ -9,14 +9,25 @@ import hashlib
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from openai import OpenAI
+from openai import APIError, OpenAI, RateLimitError
 
 from .models import ChunkContext, Conclusion, ConclusionType
 
 logger = logging.getLogger(__name__)
+
+# Rough token estimation (chars / 4 is reasonable for English)
+CHARS_PER_TOKEN = 4
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 1.0  # seconds
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count from text length."""
+    return len(text) // CHARS_PER_TOKEN
 
 
 @dataclass
@@ -139,6 +150,32 @@ class ConclusionExtractor:
 
         logger.debug(f"Initialized extractor with model={self.config.model}")
 
+    def _call_with_retry(
+        self, messages: list[dict], response_format: dict
+    ) -> str | None:
+        """Call OpenAI API with exponential backoff retry."""
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.config.model,
+                    messages=messages,
+                    temperature=self.config.temperature,
+                    response_format=response_format,
+                )
+                return response.choices[0].message.content
+            except RateLimitError as e:
+                delay = RETRY_BASE_DELAY * (2**attempt)
+                logger.warning(f"Rate limited, retrying in {delay}s: {e}")
+                time.sleep(delay)
+            except APIError as e:
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(f"API error, retrying in {delay}s: {e}")
+                    time.sleep(delay)
+                else:
+                    raise
+        return None
+
     def extract_conclusions(
         self,
         chunk: str,
@@ -176,8 +213,7 @@ class ConclusionExtractor:
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.config.model,
+            content = self._call_with_retry(
                 messages=[
                     {
                         "role": "system",
@@ -185,11 +221,8 @@ class ConclusionExtractor:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=self.config.temperature,
                 response_format={"type": "json_object"},
             )
-
-            content = response.choices[0].message.content
             if not content:
                 return []
 
@@ -207,8 +240,8 @@ class ConclusionExtractor:
             now = datetime.now(UTC).isoformat()
 
             for raw in raw_conclusions:
-                # Skip if below confidence threshold
-                confidence = float(raw.get("confidence", 0))
+                # Clamp confidence to [0, 1]
+                confidence = max(0.0, min(1.0, float(raw.get("confidence", 0))))
                 if confidence < self.config.min_confidence:
                     continue
 
@@ -290,18 +323,39 @@ class ConclusionExtractor:
         if not valid_chunks:
             return {}
 
-        # Build chunks JSON for prompt
+        # Build chunks JSON respecting token limits
         chunks_data = []
+        total_tokens = 500  # Reserve for prompt template and response
+        max_tokens = self.config.max_batch_tokens
+
         for content, chunk_id, context in valid_chunks:
+            # Estimate tokens for this chunk
+            chunk_tokens = estimate_tokens(content)
+
+            # If chunk alone exceeds limit, truncate it
+            if chunk_tokens > max_tokens // 2:
+                max_chars = (max_tokens // 2) * CHARS_PER_TOKEN
+                content = content[:max_chars]
+                chunk_tokens = estimate_tokens(content)
+
+            # Check if adding this chunk would exceed limit
+            if total_tokens + chunk_tokens > max_tokens:
+                logger.debug(f"Batch token limit reached at {len(chunks_data)} chunks")
+                break
+
+            total_tokens += chunk_tokens
             chunks_data.append(
                 {
                     "chunk_id": chunk_id,
                     "source_path": context.source_path,
                     "heading": context.heading or "(no heading)",
                     "tags": context.tags,
-                    "content": content[:2000],  # Limit per chunk in batch
+                    "content": content,
                 }
             )
+
+        if not chunks_data:
+            return {}
 
         abductive_instruction = (
             "Include abductive conclusions (best explanations) when appropriate."
@@ -316,8 +370,7 @@ class ConclusionExtractor:
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.config.model,
+            content = self._call_with_retry(
                 messages=[
                     {
                         "role": "system",
@@ -325,11 +378,8 @@ class ConclusionExtractor:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                temperature=self.config.temperature,
                 response_format={"type": "json_object"},
             )
-
-            content = response.choices[0].message.content
             if not content:
                 return {}
 
@@ -352,7 +402,8 @@ class ConclusionExtractor:
                 conclusions = []
 
                 for raw in raw_conclusions:
-                    confidence = float(raw.get("confidence", 0))
+                    # Clamp confidence to [0, 1]
+                    confidence = max(0.0, min(1.0, float(raw.get("confidence", 0))))
                     if confidence < self.config.min_confidence:
                         continue
 
