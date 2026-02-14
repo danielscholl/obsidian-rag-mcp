@@ -229,6 +229,96 @@ class ConclusionStore:
         """Get total number of conclusions."""
         return self.collection.count()
 
+    def find_similar(
+        self,
+        conclusion_id: str,
+        top_k: int = 5,
+        exclude_same_source: bool = False,
+    ) -> list[tuple[Conclusion, float]]:
+        """
+        Find conclusions similar to a given conclusion.
+
+        Args:
+            conclusion_id: ID of the conclusion to find similar ones for
+            top_k: Maximum number of similar conclusions to return
+            exclude_same_source: If True, exclude conclusions from same source file
+
+        Returns:
+            List of (conclusion, similarity_score) tuples
+        """
+        # Get the target conclusion
+        target = self.get(conclusion_id)
+        if not target:
+            return []
+
+        # Search for similar conclusions using the statement
+        if self.embedder:
+            query_embedding = self.embedder.embed_text(target.statement)
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=top_k + 1,  # +1 to account for self
+                include=["documents", "metadatas", "distances"],
+            )
+        else:
+            results = self.collection.query(
+                query_texts=[target.statement],
+                n_results=top_k + 1,
+                include=["documents", "metadatas", "distances"],
+            )
+
+        similar = []
+        if results["ids"] and results["ids"][0]:
+            for i, cid in enumerate(results["ids"][0]):
+                # Skip self
+                if cid == conclusion_id:
+                    continue
+
+                metadata = results["metadatas"][0][i]
+
+                # Optionally skip same source
+                if (
+                    exclude_same_source
+                    and metadata["source_path"] == target.context.source_path
+                ):
+                    continue
+
+                conclusion = self._result_to_conclusion(
+                    cid,
+                    results["documents"][0][i],
+                    metadata,
+                )
+
+                # Convert distance to similarity
+                distance = results["distances"][0][i]
+                similarity = 1 - distance
+
+                similar.append((conclusion, similarity))
+
+                if len(similar) >= top_k:
+                    break
+
+        return similar
+
+    def get_by_source_chunk(self, source_chunk_id: str) -> list[Conclusion]:
+        """Get all conclusions derived from a specific source chunk."""
+        results = self.collection.get(
+            where={"source_chunk_id": source_chunk_id},
+            include=["documents", "metadatas"],
+        )
+
+        conclusions = []
+        if results["ids"]:
+            for i, cid in enumerate(results["ids"]):
+                conclusions.append(
+                    self._result_to_conclusion(
+                        cid,
+                        results["documents"][i],
+                        results["metadatas"][i],
+                    )
+                )
+
+        return conclusions
+
     def clear(self) -> None:
         """Delete all conclusions."""
         # Recreate collection

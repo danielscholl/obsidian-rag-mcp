@@ -332,6 +332,173 @@ class RAGEngine:
             total_conclusions_searched=self.conclusion_store.count(),
         )
 
+    def get_conclusion_trace(
+        self,
+        conclusion_id: str,
+        max_depth: int = 3,
+    ) -> dict | None:
+        """
+        Get the reasoning trace for a specific conclusion.
+
+        Shows the evidence chain: source chunk -> conclusion -> related conclusions.
+
+        Args:
+            conclusion_id: ID of the conclusion to trace
+            max_depth: Maximum depth for finding related conclusions
+
+        Returns:
+            ReasoningTrace as dict, or None if conclusion not found
+        """
+        if not self.conclusion_store:
+            return None
+
+        # Get the target conclusion
+        conclusion = self.conclusion_store.get(conclusion_id)
+        if not conclusion:
+            return None
+
+        # Get the source chunk as supporting evidence
+        supporting_evidence = []
+        try:
+            chunk_result = self.collection.get(
+                ids=[conclusion.source_chunk_id],
+                include=["documents", "metadatas"],
+            )
+            if chunk_result["ids"]:
+                metadata = chunk_result["metadatas"][0]
+                tags_str = metadata.get("tags", "")
+                tags = [t.strip() for t in tags_str.split(",") if t.strip()]
+
+                supporting_evidence.append(
+                    {
+                        "chunk_id": conclusion.source_chunk_id,
+                        "content": chunk_result["documents"][0],
+                        "relevance_score": 1.0,
+                        "context": {
+                            "source_path": metadata["source_path"],
+                            "title": metadata.get("title", ""),
+                            "heading": metadata.get("heading") or None,
+                            "tags": tags,
+                            "chunk_index": metadata.get("chunk_index", 0),
+                        },
+                    }
+                )
+        except Exception:
+            pass  # Chunk may not exist
+
+        # Find related conclusions (semantically similar)
+        similar = self.conclusion_store.find_similar(
+            conclusion_id, top_k=max_depth * 2, exclude_same_source=False
+        )
+
+        # Separate into "parent" (from same source, likely supporting)
+        # and "child" (from different sources, likely derived/extended)
+        parent_conclusions = []
+        child_conclusions = []
+
+        for related, similarity in similar:
+            conclusion_dict = related.to_dict()
+            conclusion_dict["similarity"] = round(similarity, 4)
+
+            if related.context.source_path == conclusion.context.source_path:
+                parent_conclusions.append(conclusion_dict)
+            else:
+                child_conclusions.append(conclusion_dict)
+
+            if (
+                len(parent_conclusions) >= max_depth
+                and len(child_conclusions) >= max_depth
+            ):
+                break
+
+        # Calculate confidence path (product of confidences)
+        confidence_path = conclusion.confidence
+        for parent in parent_conclusions[:max_depth]:
+            confidence_path *= parent.get("confidence", 1.0)
+
+        return {
+            "conclusion": conclusion.to_dict(),
+            "supporting_evidence": supporting_evidence,
+            "parent_conclusions": parent_conclusions[:max_depth],
+            "child_conclusions": child_conclusions[:max_depth],
+            "confidence_path": round(confidence_path, 4),
+        }
+
+    def explore_connected_conclusions(
+        self,
+        query: str | None = None,
+        conclusion_id: str | None = None,
+        top_k: int = 10,
+        min_confidence: float = 0.0,
+    ) -> list[dict]:
+        """
+        Explore conclusions related to a query or another conclusion.
+
+        Args:
+            query: Text query to find related conclusions
+            conclusion_id: ID of conclusion to find related ones
+            top_k: Maximum number of conclusions to return
+            min_confidence: Minimum confidence threshold
+
+        Returns:
+            List of ConnectedConclusion dicts
+        """
+        if not self.conclusion_store:
+            return []
+
+        connected = []
+
+        if conclusion_id:
+            # Find similar to a specific conclusion
+            similar = self.conclusion_store.find_similar(
+                conclusion_id, top_k=top_k, exclude_same_source=False
+            )
+
+            target = self.conclusion_store.get(conclusion_id)
+            target_source = target.context.source_path if target else None
+
+            for conclusion, similarity in similar:
+                if conclusion.confidence < min_confidence:
+                    continue
+
+                # Determine relationship based on source
+                if conclusion.context.source_path == target_source:
+                    relationship = "same_source"
+                else:
+                    relationship = "similar"
+
+                # Find shared evidence (source chunks)
+                shared = []
+                if target and target.source_chunk_id == conclusion.source_chunk_id:
+                    shared.append(conclusion.source_chunk_id)
+
+                connected.append(
+                    {
+                        "conclusion": conclusion.to_dict(),
+                        "relationship": relationship,
+                        "strength": round(similarity, 4),
+                        "shared_evidence": shared,
+                    }
+                )
+
+        elif query:
+            # Search by query text
+            conclusions = self.conclusion_store.search(
+                query=query, top_k=top_k, min_confidence=min_confidence
+            )
+
+            for conclusion in conclusions:
+                connected.append(
+                    {
+                        "conclusion": conclusion.to_dict(),
+                        "relationship": "matches_query",
+                        "strength": conclusion.confidence,
+                        "shared_evidence": [],
+                    }
+                )
+
+        return connected
+
     def get_note(self, path: str) -> str | None:
         """
         Get the full content of a note by path.

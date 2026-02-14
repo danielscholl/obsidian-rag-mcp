@@ -614,3 +614,167 @@ class TestSearchWithReasoning:
             assert response.conclusions[0].statement == "Test conclusion"
             assert response.conclusions[0].type == "deductive"
             assert response.total_conclusions_searched == 10
+
+
+class TestGetConclusionTrace:
+    """Test get_conclusion_trace functionality."""
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_none_when_reasoning_disabled(self, mock_indexer_class):
+        """Test returns None when reasoning is disabled."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.conclusion_store = None
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=False,
+            )
+
+            result = engine.get_conclusion_trace("nonexistent")
+            assert result is None
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_none_for_nonexistent_conclusion(self, mock_indexer_class):
+        """Test returns None when conclusion not found."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+
+        mock_conclusion_store = Mock()
+        mock_conclusion_store.get.return_value = None
+        mock_indexer.conclusion_store = mock_conclusion_store
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=True,
+            )
+            engine.conclusion_store = mock_conclusion_store
+
+            result = engine.get_conclusion_trace("nonexistent")
+            assert result is None
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_trace_for_valid_conclusion(self, mock_indexer_class):
+        """Test returns trace for valid conclusion."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+
+        # Create mock conclusion
+        mock_conclusion = Mock()
+        mock_conclusion.id = "c1"
+        mock_conclusion.source_chunk_id = "chunk1"
+        mock_conclusion.confidence = 0.9
+        mock_conclusion.context = Mock()
+        mock_conclusion.context.source_path = "test.md"
+        mock_conclusion.to_dict.return_value = {
+            "id": "c1",
+            "statement": "Test conclusion",
+            "confidence": 0.9,
+        }
+
+        mock_conclusion_store = Mock()
+        mock_conclusion_store.get.return_value = mock_conclusion
+        mock_conclusion_store.find_similar.return_value = []
+        mock_indexer.conclusion_store = mock_conclusion_store
+
+        # Mock collection for source chunk lookup
+        mock_collection = Mock()
+        mock_collection.get.return_value = {
+            "ids": ["chunk1"],
+            "documents": ["Source content"],
+            "metadatas": [
+                {
+                    "source_path": "test.md",
+                    "title": "Test",
+                    "heading": "",
+                    "tags": "",
+                    "chunk_index": 0,
+                }
+            ],
+        }
+        mock_indexer.collection = mock_collection
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=True,
+            )
+            engine.conclusion_store = mock_conclusion_store
+            engine.collection = mock_collection
+
+            result = engine.get_conclusion_trace("c1")
+
+            assert result is not None
+            assert "conclusion" in result
+            assert "supporting_evidence" in result
+            assert "parent_conclusions" in result
+            assert "child_conclusions" in result
+            assert "confidence_path" in result
+
+
+class TestExploreConnectedConclusions:
+    """Test explore_connected_conclusions functionality."""
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_empty_when_reasoning_disabled(self, mock_indexer_class):
+        """Test returns empty list when reasoning disabled."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.conclusion_store = None
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=False,
+            )
+
+            result = engine.explore_connected_conclusions(query="test")
+            assert result == []
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_search_by_query(self, mock_indexer_class):
+        """Test searching by query text."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+
+        mock_conclusion = Mock()
+        mock_conclusion.confidence = 0.9
+        mock_conclusion.to_dict.return_value = {"id": "c1", "statement": "Found"}
+
+        mock_conclusion_store = Mock()
+        mock_conclusion_store.search.return_value = [mock_conclusion]
+        mock_indexer.conclusion_store = mock_conclusion_store
+        mock_indexer.collection = Mock()
+        mock_indexer.embedder = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=True,
+            )
+            engine.conclusion_store = mock_conclusion_store
+
+            result = engine.explore_connected_conclusions(query="test query")
+
+            assert len(result) == 1
+            assert result[0]["relationship"] == "matches_query"
+            mock_conclusion_store.search.assert_called_once()
