@@ -278,6 +278,82 @@ class TestConclusionExtractor:
         assert len(conclusions) == 1
         assert conclusions[0].statement == "High conf"
 
+    @patch("src.reasoning.extractor.OpenAI")
+    def test_batch_extraction(self, mock_openai_class):
+        """Test batch extraction of multiple chunks."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        mock_response = Mock()
+        mock_response.choices = [
+            Mock(
+                message=Mock(
+                    content=json.dumps(
+                        {
+                            "results": {
+                                "chunk1": {
+                                    "conclusions": [
+                                        {
+                                            "type": "deductive",
+                                            "statement": "Conclusion from chunk 1",
+                                            "confidence": 0.9,
+                                            "evidence": ["evidence1"],
+                                        }
+                                    ]
+                                },
+                                "chunk2": {
+                                    "conclusions": [
+                                        {
+                                            "type": "inductive",
+                                            "statement": "Conclusion from chunk 2",
+                                            "confidence": 0.8,
+                                            "evidence": ["evidence2"],
+                                        }
+                                    ]
+                                },
+                            }
+                        }
+                    )
+                )
+            )
+        ]
+        mock_client.chat.completions.create.return_value = mock_response
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        ctx1 = ChunkContext(
+            source_path="doc1.md",
+            title="Doc 1",
+            heading="Section",
+            tags=["tag1"],
+            chunk_index=0,
+        )
+        ctx2 = ChunkContext(
+            source_path="doc2.md",
+            title="Doc 2",
+            heading="Section",
+            tags=["tag2"],
+            chunk_index=0,
+        )
+
+        chunks = [
+            ("Content of chunk 1", "chunk1", ctx1),
+            ("Content of chunk 2", "chunk2", ctx2),
+        ]
+
+        results = extractor.extract_conclusions_batch(chunks)
+
+        assert len(results) == 2
+        assert "chunk1" in results
+        assert "chunk2" in results
+        assert len(results["chunk1"]) == 1
+        assert len(results["chunk2"]) == 1
+        assert results["chunk1"][0].statement == "Conclusion from chunk 1"
+        assert results["chunk2"][0].statement == "Conclusion from chunk 2"
+        # Only one API call for both chunks
+        assert mock_client.chat.completions.create.call_count == 1
+
 
 class TestConclusionStore:
     """Test ConclusionStore with real ChromaDB (temp dir)."""
