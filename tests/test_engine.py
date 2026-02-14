@@ -442,6 +442,38 @@ class TestConclusionResult:
         assert d["type"] == "inductive"
         assert d["confidence"] == 0.7567
         assert d["evidence"] == ["evidence1", "evidence2"]
+        # source_chunk and related_conclusions should not appear when None
+        assert "source_chunk" not in d
+        assert "related_conclusions" not in d
+
+    def test_to_dict_with_source_chunk(self):
+        """Test serialization includes source chunk when present."""
+        from src.rag.engine import SourceEvidence
+
+        source = SourceEvidence(
+            chunk_id="doc:0",
+            content="Source content",
+            source_path="source.md",
+            title="Source",
+            heading="Section",
+        )
+        result = ConclusionResult(
+            id="xyz",
+            type="deductive",
+            statement="Statement",
+            confidence=0.9,
+            evidence=["ev1"],
+            source_path="notes.md",
+            heading=None,
+            source_chunk=source,
+            related_conclusions=["rel1", "rel2"],
+        )
+
+        d = result.to_dict()
+        assert "source_chunk" in d
+        assert d["source_chunk"]["chunk_id"] == "doc:0"
+        assert d["source_chunk"]["content"] == "Source content"
+        assert d["related_conclusions"] == ["rel1", "rel2"]
 
 
 class TestSearchWithReasoningResponse:

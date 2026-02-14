@@ -62,6 +62,26 @@ class SearchResponse:
 
 
 @dataclass
+class SourceEvidence:
+    """Source chunk that supports a conclusion."""
+
+    chunk_id: str
+    content: str
+    source_path: str
+    title: str
+    heading: str | None
+
+    def to_dict(self) -> dict:
+        return {
+            "chunk_id": self.chunk_id,
+            "content": self.content,
+            "source_path": self.source_path,
+            "title": self.title,
+            "heading": self.heading,
+        }
+
+
+@dataclass
 class ConclusionResult:
     """A conclusion result for search_with_reasoning."""
 
@@ -72,9 +92,11 @@ class ConclusionResult:
     evidence: list[str]
     source_path: str
     heading: str | None
+    source_chunk: SourceEvidence | None = None  # The chunk this conclusion came from
+    related_conclusions: list[str] | None = None  # IDs of related conclusions
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "id": self.id,
             "type": self.type,
             "statement": self.statement,
@@ -83,6 +105,11 @@ class ConclusionResult:
             "source_path": self.source_path,
             "heading": self.heading,
         }
+        if self.source_chunk:
+            result["source_chunk"] = self.source_chunk.to_dict()
+        if self.related_conclusions:
+            result["related_conclusions"] = self.related_conclusions
+        return result
 
 
 @dataclass
@@ -144,6 +171,26 @@ class RAGEngine:
 
         # Access reasoning components from indexer
         self.conclusion_store: ConclusionStore | None = self.indexer.conclusion_store
+
+    def _get_source_chunk(self, chunk_id: str) -> SourceEvidence | None:
+        """Fetch source chunk content for a conclusion."""
+        try:
+            result = self.collection.get(
+                ids=[chunk_id],
+                include=["documents", "metadatas"],
+            )
+            if result["ids"]:
+                metadata = result["metadatas"][0]
+                return SourceEvidence(
+                    chunk_id=chunk_id,
+                    content=result["documents"][0],
+                    source_path=metadata["source_path"],
+                    title=metadata.get("title", ""),
+                    heading=metadata.get("heading"),
+                )
+        except Exception as e:
+            logger.debug(f"Could not fetch source chunk {chunk_id}: {e}")
+        return None
 
     def search(
         self,
@@ -313,19 +360,37 @@ class RAGEngine:
                 c for c in raw_conclusions if c.type.value in valid_types
             ]
 
-        # Convert to ConclusionResult
-        conclusion_results = [
-            ConclusionResult(
-                id=c.id,
-                type=c.type.value,
-                statement=c.statement,
-                confidence=c.confidence,
-                evidence=c.evidence,
-                source_path=c.context.source_path,
-                heading=c.context.heading,
+        # Convert to ConclusionResult with source chunks and related conclusions
+        conclusion_results = []
+        for c in raw_conclusions:
+            # Get source chunk content
+            source_chunk = self._get_source_chunk(c.source_chunk_id)
+
+            # Find related conclusions (semantically similar)
+            related_ids = []
+            try:
+                related = self.conclusion_store.search(
+                    query=c.statement,
+                    top_k=3,
+                    min_confidence=min_confidence,
+                )
+                related_ids = [r.id for r in related if r.id != c.id][:2]
+            except Exception as e:
+                logger.debug(f"Could not find related conclusions: {e}")
+
+            conclusion_results.append(
+                ConclusionResult(
+                    id=c.id,
+                    type=c.type.value,
+                    statement=c.statement,
+                    confidence=c.confidence,
+                    evidence=c.evidence,
+                    source_path=c.context.source_path,
+                    heading=c.context.heading,
+                    source_chunk=source_chunk,
+                    related_conclusions=related_ids if related_ids else None,
+                )
             )
-            for c in raw_conclusions
-        ]
 
         return SearchWithReasoningResponse(
             query=query,
