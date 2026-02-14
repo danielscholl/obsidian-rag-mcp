@@ -24,37 +24,58 @@ Semantic search. Your data stays local. Sub-second queries.
 ## Quick Start
 
 ```bash
-# Clone and install
+# Clone and install (using uv - recommended)
 git clone https://github.com/ed-insights-ai/obsidian-rag-mcp.git
 cd obsidian-rag-mcp
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
+uv sync
 
-# Configure
-cp .env.example .env
-# Add your OPENAI_API_KEY to .env
+# Set your API key
+export OPENAI_API_KEY="sk-..."
 
-# Index your vault
-obsidian-rag index /path/to/your/vault
+# Index the sample vault (or your own)
+uv run obsidian-rag index --vault ./vault
 
-# Test it
-obsidian-rag search "database connection issues"
+# Search it
+uv run obsidian-rag search "database connection issues" --vault ./vault
 ```
+
+<details>
+<summary>Output</summary>
+
+```
+Query: database connection issues
+Found 3 results (searched 1154 chunks)
+
+--- Result 1 (score: 0.480) ---
+Source: RCAs/2025-05-17-database-connection-pool-exhaustion.md
+Tags: database, p1, rca
+
+# 2025-05-17 - Database Connection Pool Exhaustion in payment-gateway...
+
+--- Result 2 (score: 0.466) ---
+Source: RCAs/2025-06-18-database-connection-pool-exhaustion.md
+Tags: database, p2, rca
+
+# 2025-06-18 - Database Connection Pool Exhaustion in auth-service...
+```
+
+</details>
 
 ---
 
 ## Connect to Claude Code
 
-Add to your MCP configuration (`~/.config/claude/mcp.json` or similar):
+Add to `~/.claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "obsidian-rag": {
-      "command": "obsidian-rag",
-      "args": ["serve", "--vault", "/path/to/your/vault"],
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/obsidian-rag-mcp", "obsidian-rag", "serve"],
       "env": {
-        "OPENAI_API_KEY": "your-key-here"
+        "VAULT_PATH": "/path/to/your/vault",
+        "OPENAI_API_KEY": "sk-..."
       }
     }
   }
@@ -63,7 +84,7 @@ Add to your MCP configuration (`~/.config/claude/mcp.json` or similar):
 
 Then ask Claude things like:
 - "Search my vault for notes about Kubernetes deployments"
-- "Find RCAs related to authentication failures"
+- "Find RCAs related to authentication failures"  
 - "What did I write about the Q3 migration?"
 
 ---
@@ -77,6 +98,7 @@ Then ask Claude things like:
 | `get_related` | Find notes similar to a given note |
 | `get_note` | Retrieve full note content |
 | `list_recent` | Recently modified notes |
+| `search_with_reasoning` | Search with extracted conclusions (Phase 2) |
 
 ---
 
@@ -85,8 +107,9 @@ Then ask Claude things like:
 1. **Index**: Scans your vault, chunks markdown intelligently (respecting headers, code blocks), generates embeddings via OpenAI
 2. **Store**: Vectors go into ChromaDB (local, no external database needed)
 3. **Query**: Your question gets embedded, matched against stored vectors, ranked results returned
+4. **Reasoning** (optional): Extract conclusions from notes at index time for richer search results
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design, or [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for local setup.
 
 ---
 
@@ -94,30 +117,28 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system design.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | For generating embeddings |
-| `OBSIDIAN_VAULT_PATH` | No | Default vault path |
-| `CHROMA_PERSIST_DIR` | No | Where to store the vector database |
+| `OPENAI_API_KEY` | Yes | For embeddings (and reasoning if enabled) |
+| `VAULT_PATH` | No | Default vault path |
+| `REASONING_ENABLED` | No | Enable conclusion extraction (default: false) |
 
-**Cost**: ~$0.02 to index 100 notes. Queries are essentially free (~$0.00001 each).
+**Cost**: ~$0.02 to index 100 notes. Queries are essentially free.
 
 ---
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+uv sync
 
-# Tests
-pytest tests/ -v
+# Tests (88 passing)
+uv run pytest
 
-# Linting + formatting
-black src/ tests/ && ruff check src/ tests/
-
-# Type checking
-mypy src
+# Lint + format
+uv run black src/ tests/
+uv run ruff check src/ tests/
 ```
 
-Pre-commit hooks enforce these on every commit. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full guide.
 
 ---
 
