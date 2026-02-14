@@ -6,11 +6,14 @@ Supports optional reasoning layer for enriched search with logical conclusions.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .indexer import IndexerConfig, VaultIndexer
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from src.reasoning import ConclusionStore
@@ -383,8 +386,10 @@ class RAGEngine:
                         },
                     }
                 )
-        except Exception:
-            pass  # Chunk may not exist
+        except Exception as e:
+            logger.debug(
+                f"Could not retrieve source chunk {conclusion.source_chunk_id}: {e}"
+            )
 
         # Find related conclusions (semantically similar)
         similar = self.conclusion_store.find_similar(

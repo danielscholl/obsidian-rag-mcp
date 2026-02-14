@@ -31,15 +31,30 @@ class ConclusionStore:
     def __init__(
         self,
         persist_dir: str = ".chroma",
-        embedder=None,  # OpenAIEmbedder instance
+        embedder=None,
+        chroma_client=None,
     ):
+        """
+        Initialize the conclusion store.
+
+        Args:
+            persist_dir: Directory for ChromaDB persistence
+            embedder: Optional embedder for semantic search
+            chroma_client: Optional existing ChromaDB client (avoids duplicate connections)
+        """
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_dir),
-            settings=Settings(anonymized_telemetry=False),
-        )
+        # Use provided client or create new one
+        if chroma_client is not None:
+            self.client = chroma_client
+            self._owns_client = False
+        else:
+            self.client = chromadb.PersistentClient(
+                path=str(self.persist_dir),
+                settings=Settings(anonymized_telemetry=False),
+            )
+            self._owns_client = True
 
         self.embedder = embedder
         self.collection = self.client.get_or_create_collection(
