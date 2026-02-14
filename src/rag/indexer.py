@@ -1,6 +1,10 @@
 """
 Vault indexer - scans, chunks, and indexes Obsidian vault content.
+
+Optionally extracts reasoning conclusions at index time for enriched search.
 """
+
+from __future__ import annotations
 
 import fnmatch
 import hashlib
@@ -10,12 +14,17 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import chromadb
 from chromadb.config import Settings
 
 from .chunker import Chunk, ChunkerConfig, MarkdownChunker
 from .embedder import EmbedderConfig, OpenAIEmbedder
+
+if TYPE_CHECKING:
+    from src.reasoning import ConclusionExtractor, ConclusionStore
+    from src.reasoning.extractor import ExtractorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +40,10 @@ class IndexerConfig:
     # Sub-configs
     chunker_config: ChunkerConfig | None = None
     embedder_config: EmbedderConfig | None = None
+
+    # Reasoning layer (Phase 2)
+    reasoning_enabled: bool = False
+    extractor_config: ExtractorConfig | None = None
 
     # Behavior - use field with default_factory for mutable default
     ignore_patterns: list[str] | None = None
@@ -55,14 +68,20 @@ class IndexStats:
     total_chunks: int
     indexed_at: datetime
     vault_path: str
+    total_conclusions: int = 0
+    reasoning_enabled: bool = False
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "total_files": self.total_files,
             "total_chunks": self.total_chunks,
             "indexed_at": self.indexed_at.isoformat(),
             "vault_path": self.vault_path,
         }
+        if self.reasoning_enabled:
+            result["total_conclusions"] = self.total_conclusions
+            result["reasoning_enabled"] = True
+        return result
 
 
 class VaultIndexer:
@@ -111,6 +130,30 @@ class VaultIndexer:
         self.file_hashes = self._load_hashes()
 
         logger.debug(f"Loaded {len(self.file_hashes)} file hashes from cache")
+
+        # Initialize reasoning layer if enabled
+        self.conclusion_extractor: ConclusionExtractor | None = None
+        self.conclusion_store: ConclusionStore | None = None
+
+        if config.reasoning_enabled:
+            self._init_reasoning(api_key, persist_path)
+
+    def _init_reasoning(self, api_key: str | None, persist_path: Path) -> None:
+        """Initialize reasoning layer components."""
+        from src.reasoning import ConclusionExtractor, ConclusionStore
+        from src.reasoning.extractor import ExtractorConfig
+
+        logger.info("Initializing reasoning layer...")
+
+        extractor_config = self.config.extractor_config or ExtractorConfig()
+        self.conclusion_extractor = ConclusionExtractor(
+            api_key=api_key,
+            config=extractor_config,
+        )
+        self.conclusion_store = ConclusionStore(
+            persist_dir=str(persist_path),
+            embedder=self.embedder,
+        )
 
     def _load_hashes(self) -> dict[str, str]:
         """Load previously computed file hashes."""
@@ -202,6 +245,9 @@ class VaultIndexer:
             for stale_path in stale_paths:
                 try:
                     self.collection.delete(where={"source_path": stale_path})
+                    # Also remove stale conclusions if reasoning is enabled
+                    if self.conclusion_store:
+                        self.conclusion_store.delete_by_source(stale_path)
                     del self.file_hashes[stale_path]
                     logger.debug(f"Removed stale: {stale_path}")
                 except Exception as e:
@@ -224,11 +270,16 @@ class VaultIndexer:
 
         if not files_to_index:
             logger.info("No files need indexing.")
+            total_conclusions = 0
+            if self.conclusion_store:
+                total_conclusions = self.conclusion_store.count()
             return IndexStats(
                 total_files=len(files),
                 total_chunks=self.collection.count(),
                 indexed_at=datetime.now(),
                 vault_path=str(self.vault_path),
+                total_conclusions=total_conclusions,
+                reasoning_enabled=self.config.reasoning_enabled,
             )
 
         logger.info(f"Indexing {len(files_to_index)} files...")
@@ -247,6 +298,15 @@ class VaultIndexer:
                 # Log but don't fail - old chunks will be overwritten anyway
                 logger.debug(f"Failed to delete old chunks for {rel_path}: {e}")
 
+            # Remove old conclusions if reasoning is enabled
+            if self.conclusion_store:
+                try:
+                    self.conclusion_store.delete_by_source(rel_path)
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to delete old conclusions for {rel_path}: {e}"
+                    )
+
             # Chunk the document
             chunks = self.chunker.chunk_document(content, rel_path)
             all_chunks.extend(chunks)
@@ -259,6 +319,8 @@ class VaultIndexer:
                 total_chunks=0,
                 indexed_at=datetime.now(),
                 vault_path=str(self.vault_path),
+                total_conclusions=0,
+                reasoning_enabled=self.config.reasoning_enabled,
             )
 
         logger.info(f"Embedding {len(all_chunks)} chunks...")
@@ -303,24 +365,94 @@ class VaultIndexer:
         self._save_hashes()
 
         total_chunks = self.collection.count()
+
+        # Fifth pass: extract conclusions if reasoning is enabled
+        total_conclusions = 0
+        if self.conclusion_extractor and self.conclusion_store:
+            total_conclusions = self._extract_conclusions(all_chunks)
+
         logger.info(
             f"Indexed {files_indexed} files, {len(all_chunks)} chunks. Total: {total_chunks}."
         )
+        if total_conclusions:
+            logger.info(f"Extracted {total_conclusions} conclusions.")
 
         return IndexStats(
             total_files=len(files),
             total_chunks=total_chunks,
             indexed_at=datetime.now(),
             vault_path=str(self.vault_path),
+            total_conclusions=total_conclusions,
+            reasoning_enabled=self.config.reasoning_enabled,
         )
+
+    def _extract_conclusions(self, chunks: list[Chunk]) -> int:
+        """
+        Extract conclusions from chunks using LLM.
+
+        Args:
+            chunks: List of chunks to process
+
+        Returns:
+            Number of conclusions extracted
+        """
+        from src.reasoning.models import ChunkContext
+
+        if not self.conclusion_extractor or not self.conclusion_store:
+            return 0
+
+        logger.info(f"Extracting conclusions from {len(chunks)} chunks...")
+
+        all_conclusions = []
+
+        for i, chunk in enumerate(chunks):
+            chunk_id = f"{chunk.source_path}:{chunk.chunk_index}"
+
+            # Build context for the extractor
+            context = ChunkContext(
+                source_path=chunk.source_path,
+                title=chunk.title or "",
+                heading=chunk.heading,
+                tags=chunk.tags,
+                chunk_index=chunk.chunk_index,
+            )
+
+            try:
+                conclusions = self.conclusion_extractor.extract_conclusions(
+                    chunk=chunk.content,
+                    chunk_id=chunk_id,
+                    context=context,
+                )
+                all_conclusions.extend(conclusions)
+
+                if (i + 1) % 50 == 0:
+                    logger.debug(
+                        f"Processed {i + 1}/{len(chunks)} chunks, "
+                        f"{len(all_conclusions)} conclusions so far"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to extract conclusions from {chunk_id}: {e}")
+                continue
+
+        # Store all conclusions
+        if all_conclusions:
+            self.conclusion_store.add(all_conclusions)
+
+        return len(all_conclusions)
 
     def get_stats(self) -> IndexStats:
         """Get current index statistics."""
+        total_conclusions = 0
+        if self.conclusion_store:
+            total_conclusions = self.conclusion_store.count()
+
         return IndexStats(
             total_files=len(self.scan_vault()),
             total_chunks=self.collection.count(),
             indexed_at=datetime.now(),
             vault_path=str(self.vault_path),
+            total_conclusions=total_conclusions,
+            reasoning_enabled=self.config.reasoning_enabled,
         )
 
     def delete_index(self):
@@ -332,4 +464,10 @@ class VaultIndexer:
         )
         self.file_hashes = {}
         self._save_hashes()
+
+        # Clear conclusions if reasoning is enabled
+        if self.conclusion_store:
+            self.conclusion_store.clear()
+            logger.debug("Cleared conclusion store")
+
         logger.info("Index deleted.")

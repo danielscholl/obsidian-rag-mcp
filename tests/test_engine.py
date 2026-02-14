@@ -4,7 +4,13 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.rag.engine import RAGEngine, SearchResponse, SearchResult
+from src.rag.engine import (
+    ConclusionResult,
+    RAGEngine,
+    SearchResponse,
+    SearchResult,
+    SearchWithReasoningResponse,
+)
 
 
 class TestSearchResult:
@@ -398,3 +404,213 @@ class TestRAGEngine:
 
             with pytest.raises(ValueError, match="top_k cannot exceed 50"):
                 engine.search("valid query", top_k=51)
+
+
+class TestConclusionResult:
+    """Test ConclusionResult dataclass."""
+
+    def test_creation(self):
+        """Test creating a conclusion result."""
+        result = ConclusionResult(
+            id="abc123",
+            type="deductive",
+            statement="Python uses indentation",
+            confidence=0.95,
+            evidence=["whitespace matters"],
+            source_path="python.md",
+            heading="Syntax",
+        )
+
+        assert result.id == "abc123"
+        assert result.type == "deductive"
+        assert result.confidence == 0.95
+
+    def test_to_dict(self):
+        """Test serialization to dict."""
+        result = ConclusionResult(
+            id="xyz",
+            type="inductive",
+            statement="Pattern observed",
+            confidence=0.7567,
+            evidence=["evidence1", "evidence2"],
+            source_path="notes.md",
+            heading=None,
+        )
+
+        d = result.to_dict()
+        assert d["id"] == "xyz"
+        assert d["type"] == "inductive"
+        assert d["confidence"] == 0.7567
+        assert d["evidence"] == ["evidence1", "evidence2"]
+
+
+class TestSearchWithReasoningResponse:
+    """Test SearchWithReasoningResponse dataclass."""
+
+    def test_creation(self):
+        """Test creating a response."""
+        search_result = SearchResult(
+            content="Content",
+            source_path="test.md",
+            score=0.9,
+            title="Title",
+            heading=None,
+            tags=[],
+            chunk_index=0,
+        )
+        conclusion = ConclusionResult(
+            id="c1",
+            type="deductive",
+            statement="Statement",
+            confidence=0.9,
+            evidence=[],
+            source_path="test.md",
+            heading=None,
+        )
+
+        response = SearchWithReasoningResponse(
+            query="test",
+            results=[search_result],
+            conclusions=[conclusion],
+            total_chunks_searched=100,
+            total_conclusions_searched=50,
+        )
+
+        assert response.query == "test"
+        assert len(response.results) == 1
+        assert len(response.conclusions) == 1
+        assert response.total_conclusions_searched == 50
+
+    def test_to_dict(self):
+        """Test serialization to dict."""
+        response = SearchWithReasoningResponse(
+            query="query",
+            results=[],
+            conclusions=[],
+            total_chunks_searched=10,
+            total_conclusions_searched=5,
+        )
+
+        d = response.to_dict()
+        assert d["query"] == "query"
+        assert d["results"] == []
+        assert d["conclusions"] == []
+        assert d["total_conclusions_searched"] == 5
+
+
+class TestSearchWithReasoning:
+    """Test search_with_reasoning functionality."""
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_empty_conclusions_when_reasoning_disabled(
+        self, mock_indexer_class
+    ):
+        """Test search_with_reasoning returns empty conclusions when disabled."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+        mock_indexer.conclusion_store = None
+
+        mock_collection = Mock()
+        mock_indexer.collection = mock_collection
+        mock_collection.query.return_value = {
+            "ids": [["doc1:0"]],
+            "documents": [["Content"]],
+            "distances": [[0.1]],
+            "metadatas": [
+                [
+                    {
+                        "source_path": "doc.md",
+                        "title": "",
+                        "heading": "",
+                        "tags": "",
+                        "chunk_index": 0,
+                    }
+                ]
+            ],
+        }
+        mock_collection.count.return_value = 1
+
+        mock_embedder = Mock()
+        mock_indexer.embedder = mock_embedder
+        mock_embedder.embed_text.return_value = [0.1] * 1536
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=False,
+            )
+
+            response = engine.search_with_reasoning("test query")
+
+            assert len(response.results) == 1
+            assert response.conclusions == []
+            assert response.total_conclusions_searched == 0
+
+    @patch("src.rag.engine.VaultIndexer")
+    def test_returns_conclusions_when_reasoning_enabled(self, mock_indexer_class):
+        """Test search_with_reasoning returns conclusions when enabled."""
+        mock_indexer = Mock()
+        mock_indexer_class.return_value = mock_indexer
+
+        # Mock conclusion store
+        mock_conclusion_store = Mock()
+        mock_indexer.conclusion_store = mock_conclusion_store
+        mock_conclusion_store.count.return_value = 10
+
+        # Create mock conclusion
+        mock_conclusion = Mock()
+        mock_conclusion.id = "c1"
+        mock_conclusion.type = Mock()
+        mock_conclusion.type.value = "deductive"
+        mock_conclusion.statement = "Test conclusion"
+        mock_conclusion.confidence = 0.9
+        mock_conclusion.evidence = ["evidence"]
+        mock_conclusion.context = Mock()
+        mock_conclusion.context.source_path = "doc.md"
+        mock_conclusion.context.heading = "Section"
+
+        mock_conclusion_store.search.return_value = [mock_conclusion]
+
+        mock_collection = Mock()
+        mock_indexer.collection = mock_collection
+        mock_collection.query.return_value = {
+            "ids": [["doc1:0"]],
+            "documents": [["Content"]],
+            "distances": [[0.1]],
+            "metadatas": [
+                [
+                    {
+                        "source_path": "doc.md",
+                        "title": "",
+                        "heading": "",
+                        "tags": "",
+                        "chunk_index": 0,
+                    }
+                ]
+            ],
+        }
+        mock_collection.count.return_value = 1
+
+        mock_embedder = Mock()
+        mock_indexer.embedder = mock_embedder
+        mock_embedder.embed_text.return_value = [0.1] * 1536
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            engine = RAGEngine(
+                vault_path=tmpdir,
+                persist_dir=tmpdir,
+                api_key="test-key",
+                reasoning_enabled=True,
+            )
+            # Manually set conclusion_store since we're mocking
+            engine.conclusion_store = mock_conclusion_store
+
+            response = engine.search_with_reasoning("test query")
+
+            assert len(response.results) == 1
+            assert len(response.conclusions) == 1
+            assert response.conclusions[0].statement == "Test conclusion"
+            assert response.conclusions[0].type == "deductive"
+            assert response.total_conclusions_searched == 10

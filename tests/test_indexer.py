@@ -120,3 +120,140 @@ class TestIndexerConfig:
         assert ".obsidian/*" in config.ignore_patterns
         assert ".trash/*" in config.ignore_patterns
         assert "*.excalidraw.md" in config.ignore_patterns
+
+    def test_reasoning_disabled_by_default(self):
+        """Test reasoning is disabled by default."""
+        config = IndexerConfig(vault_path="/tmp/vault")
+        assert config.reasoning_enabled is False
+        assert config.extractor_config is None
+
+    def test_reasoning_can_be_enabled(self):
+        """Test reasoning can be enabled via config."""
+        config = IndexerConfig(vault_path="/tmp/vault", reasoning_enabled=True)
+        assert config.reasoning_enabled is True
+
+
+class TestReasoningIndexer:
+    """Test indexer with reasoning layer enabled."""
+
+    @patch("src.rag.indexer.OpenAIEmbedder")
+    @patch("src.rag.indexer.chromadb.PersistentClient")
+    def test_reasoning_not_initialized_when_disabled(self, mock_chroma, mock_embedder):
+        """Test reasoning components not initialized when disabled."""
+        mock_client = Mock()
+        mock_chroma.return_value = mock_client
+        mock_client.get_or_create_collection.return_value = Mock()
+        mock_embedder.return_value = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "note.md").write_text("# Note")
+
+            config = IndexerConfig(
+                vault_path=str(vault),
+                persist_dir=str(vault / ".chroma"),
+                reasoning_enabled=False,
+            )
+            indexer = VaultIndexer(config, api_key="test-key")
+
+            assert indexer.conclusion_extractor is None
+            assert indexer.conclusion_store is None
+
+    @patch("src.reasoning.extractor.OpenAI")
+    @patch("src.rag.indexer.OpenAIEmbedder")
+    @patch("src.rag.indexer.chromadb.PersistentClient")
+    def test_reasoning_initialized_when_enabled(
+        self, mock_chroma, mock_embedder, mock_openai
+    ):
+        """Test reasoning components are initialized when enabled."""
+        mock_client = Mock()
+        mock_chroma.return_value = mock_client
+        mock_collection = Mock()
+        mock_collection.count.return_value = 0
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_embedder.return_value = Mock()
+
+        mock_openai_instance = Mock()
+        mock_openai_instance.api_key = "test-key"
+        mock_openai.return_value = mock_openai_instance
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "note.md").write_text("# Note")
+
+            config = IndexerConfig(
+                vault_path=str(vault),
+                persist_dir=str(vault / ".chroma"),
+                reasoning_enabled=True,
+            )
+            indexer = VaultIndexer(config, api_key="test-key")
+
+            assert indexer.conclusion_extractor is not None
+            assert indexer.conclusion_store is not None
+
+    @patch("src.reasoning.extractor.OpenAI")
+    @patch("src.rag.indexer.OpenAIEmbedder")
+    @patch("src.rag.indexer.chromadb.PersistentClient")
+    def test_index_stats_include_reasoning_info(
+        self, mock_chroma, mock_embedder, mock_openai
+    ):
+        """Test index stats include conclusion count when reasoning enabled."""
+        mock_client = Mock()
+        mock_chroma.return_value = mock_client
+        mock_collection = Mock()
+        mock_collection.count.return_value = 5
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_embedder.return_value = Mock()
+
+        mock_openai_instance = Mock()
+        mock_openai_instance.api_key = "test-key"
+        mock_openai.return_value = mock_openai_instance
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "note.md").write_text("# Note")
+
+            config = IndexerConfig(
+                vault_path=str(vault),
+                persist_dir=str(vault / ".chroma"),
+                reasoning_enabled=True,
+            )
+            indexer = VaultIndexer(config, api_key="test-key")
+
+            stats = indexer.get_stats()
+            stats_dict = stats.to_dict()
+
+            assert stats.reasoning_enabled is True
+            assert "total_conclusions" in stats_dict
+            assert "reasoning_enabled" in stats_dict
+
+    @patch("src.rag.indexer.OpenAIEmbedder")
+    @patch("src.rag.indexer.chromadb.PersistentClient")
+    def test_index_stats_exclude_reasoning_when_disabled(
+        self, mock_chroma, mock_embedder
+    ):
+        """Test index stats don't include reasoning info when disabled."""
+        mock_client = Mock()
+        mock_chroma.return_value = mock_client
+        mock_collection = Mock()
+        mock_collection.count.return_value = 5
+        mock_client.get_or_create_collection.return_value = mock_collection
+        mock_embedder.return_value = Mock()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            vault = Path(tmpdir)
+            (vault / "note.md").write_text("# Note")
+
+            config = IndexerConfig(
+                vault_path=str(vault),
+                persist_dir=str(vault / ".chroma"),
+                reasoning_enabled=False,
+            )
+            indexer = VaultIndexer(config, api_key="test-key")
+
+            stats = indexer.get_stats()
+            stats_dict = stats.to_dict()
+
+            assert stats.reasoning_enabled is False
+            assert "total_conclusions" not in stats_dict
+            assert "reasoning_enabled" not in stats_dict
