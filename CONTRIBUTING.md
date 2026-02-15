@@ -45,7 +45,7 @@ uv run pytest
 uv run pytest tests/test_engine.py
 
 # With coverage
-uv run pytest --cov=src
+uv run pytest --cov=obsidian_rag_mcp
 ```
 
 ## Documentation
