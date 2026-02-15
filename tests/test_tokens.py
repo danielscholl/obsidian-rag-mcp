@@ -1,6 +1,6 @@
 """Tests for token counting utilities."""
 
-from src.utils.tokens import count_tokens
+from obsidian_rag_mcp.utils.tokens import count_tokens
 
 
 class TestCountTokens:

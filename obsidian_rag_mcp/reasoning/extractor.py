@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 
 from openai import APIError, OpenAI, RateLimitError
 
-from src.utils.tokens import count_tokens
+from obsidian_rag_mcp.utils.tokens import count_tokens
 
 from .models import ChunkContext, Conclusion, ConclusionType
 

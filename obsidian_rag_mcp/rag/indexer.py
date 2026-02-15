@@ -23,8 +23,8 @@ from .chunker import Chunk, ChunkerConfig, MarkdownChunker
 from .embedder import EmbedderConfig, OpenAIEmbedder
 
 if TYPE_CHECKING:
-    from src.reasoning import ConclusionExtractor, ConclusionStore
-    from src.reasoning.extractor import ExtractorConfig
+    from obsidian_rag_mcp.reasoning import ConclusionExtractor, ConclusionStore
+    from obsidian_rag_mcp.reasoning.extractor import ExtractorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class IndexerConfig:
     """Configuration for the indexer."""
 
     vault_path: str
-    persist_dir: str = ".chroma"
+    persist_dir: str = ".vault"
     collection_name: str = "obsidian_vault"
 
     # Sub-configs
@@ -145,8 +145,8 @@ class VaultIndexer:
 
     def _init_reasoning(self, api_key: str | None, persist_path: Path) -> None:
         """Initialize reasoning layer components."""
-        from src.reasoning import ConclusionExtractor, ConclusionStore
-        from src.reasoning.extractor import ExtractorConfig
+        from obsidian_rag_mcp.reasoning import ConclusionExtractor, ConclusionStore
+        from obsidian_rag_mcp.reasoning.extractor import ExtractorConfig
 
         logger.info("Initializing reasoning layer...")
 
@@ -432,7 +432,7 @@ class VaultIndexer:
         Returns:
             Number of conclusions extracted
         """
-        from src.reasoning.models import ChunkContext
+        from obsidian_rag_mcp.reasoning.models import ChunkContext
 
         if not self.conclusion_extractor or not self.conclusion_store:
             return 0

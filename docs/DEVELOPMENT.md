@@ -83,20 +83,20 @@ uv run pytest
 uv run pytest tests/test_engine.py
 
 # With coverage
-uv run pytest --cov=src
+uv run pytest --cov=obsidian_rag_mcp
 ```
 
 ## Code Quality
 
 ```bash
 # Format
-uv run black src/ tests/
+uv run black obsidian_rag_mcp/ tests/
 
 # Lint
-uv run ruff check src/ tests/
+uv run ruff check obsidian_rag_mcp/ tests/
 
 # Type check (optional)
-uv run mypy src/ --ignore-missing-imports
+uv run mypy obsidian_rag_mcp/ --ignore-missing-imports
 ```
 
 Pre-commit hooks run automatically on commit.
@@ -116,7 +116,7 @@ See [CLAUDE_CODE_SETUP.md](CLAUDE_CODE_SETUP.md) for full instructions.
 ## Project Structure
 
 ```
-src/
+obsidian_rag_mcp/
 ├── mcp/           # MCP server + tools
 │   └── server.py  # Tool definitions and handlers
 ├── rag/           # Core RAG functionality
@@ -151,9 +151,9 @@ Or set environment variable:
 
 ## Troubleshooting
 
-### "No module named 'src'"
+### "No module named 'obsidian_rag_mcp'"
 
-Run commands with `uv run` from the project root, not plain `python`.
+Run commands with `uv run` from the project root, or install the package with `uv pip install -e .`.
 
 ### "OPENAI_API_KEY not set"
 
@@ -161,17 +161,17 @@ Set the environment variable for your platform (see Quick Start above).
 
 ### ChromaDB errors
 
-Delete the `.chroma` directory and re-index:
+Delete the `.vault` directory and re-index:
 
 ```bash
 # Linux/macOS
-rm -rf .chroma
+rm -rf .vault
 
 # Windows PowerShell
-Remove-Item -Recurse -Force .chroma
+Remove-Item -Recurse -Force .vault
 
 # Windows CMD
-rmdir /s /q .chroma
+rmdir /s /q .vault
 ```
 
 Then re-index:

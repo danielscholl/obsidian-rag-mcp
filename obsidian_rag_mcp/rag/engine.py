@@ -16,9 +16,9 @@ from .indexer import IndexerConfig, VaultIndexer
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from src.reasoning import ConclusionStore
-    from src.reasoning.extractor import ExtractorConfig
-    from src.reasoning.models import ConclusionType
+    from obsidian_rag_mcp.reasoning import ConclusionStore
+    from obsidian_rag_mcp.reasoning.extractor import ExtractorConfig
+    from obsidian_rag_mcp.reasoning.models import ConclusionType
 
 
 @dataclass
@@ -146,7 +146,7 @@ class RAGEngine:
     def __init__(
         self,
         vault_path: str,
-        persist_dir: str = ".chroma",
+        persist_dir: str = ".vault",
         api_key: str | None = None,
         reasoning_enabled: bool = False,
         extractor_config: ExtractorConfig | None = None,
@@ -335,7 +335,7 @@ class RAGEngine:
             )
 
         # Import ConclusionType for filtering
-        from src.reasoning.models import ConclusionType
+        from obsidian_rag_mcp.reasoning.models import ConclusionType
 
         # Parse conclusion type filter
         type_filter_list: list[ConclusionType] | None = None

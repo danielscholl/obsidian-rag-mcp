@@ -13,4 +13,4 @@ fi
 export OBSIDIAN_VAULT_PATH="${OBSIDIAN_VAULT_PATH:-./vault}"
 export PYTHONPATH="${PYTHONPATH:-.}"
 
-exec python -m src.mcp.server "$@"
+exec python -m obsidian_rag_mcp.mcp.server "$@"

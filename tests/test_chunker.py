@@ -1,6 +1,6 @@
 """Tests for the markdown chunker."""
 
-from src.rag.chunker import Chunk, ChunkerConfig, MarkdownChunker
+from obsidian_rag_mcp.rag.chunker import Chunk, ChunkerConfig, MarkdownChunker
 
 
 class TestMarkdownChunker:

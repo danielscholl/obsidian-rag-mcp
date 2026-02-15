@@ -6,14 +6,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.rag.indexer import IndexerConfig, VaultIndexer
+from obsidian_rag_mcp.rag.indexer import IndexerConfig, VaultIndexer
 
 
 class TestVaultIndexer:
     """Test suite for VaultIndexer."""
 
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_symlinks_are_skipped(self, mock_chroma, mock_embedder):
         """Test that symlinks are not indexed (security feature)."""
         mock_client = Mock()
@@ -57,8 +57,8 @@ class TestVaultIndexer:
                 if outside_file.exists():
                     outside_file.unlink()
 
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_vault_path_validation(self, mock_chroma, mock_embedder):
         """Test that invalid vault paths raise errors."""
         mock_client = Mock()
@@ -74,8 +74,8 @@ class TestVaultIndexer:
             )
             VaultIndexer(config, api_key="test-key")
 
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_ignore_patterns(self, mock_chroma, mock_embedder):
         """Test that ignore patterns work correctly."""
         mock_client = Mock()
@@ -136,8 +136,8 @@ class TestIndexerConfig:
 class TestReasoningIndexer:
     """Test indexer with reasoning layer enabled."""
 
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_reasoning_not_initialized_when_disabled(self, mock_chroma, mock_embedder):
         """Test reasoning components not initialized when disabled."""
         mock_client = Mock()
@@ -159,9 +159,9 @@ class TestReasoningIndexer:
             assert indexer.conclusion_extractor is None
             assert indexer.conclusion_store is None
 
-    @patch("src.reasoning.extractor.OpenAI")
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_reasoning_initialized_when_enabled(
         self, mock_chroma, mock_embedder, mock_openai
     ):
@@ -191,9 +191,9 @@ class TestReasoningIndexer:
             assert indexer.conclusion_extractor is not None
             assert indexer.conclusion_store is not None
 
-    @patch("src.reasoning.extractor.OpenAI")
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_index_stats_include_reasoning_info(
         self, mock_chroma, mock_embedder, mock_openai
     ):
@@ -227,8 +227,8 @@ class TestReasoningIndexer:
             assert "total_conclusions" in stats_dict
             assert "reasoning_enabled" in stats_dict
 
-    @patch("src.rag.indexer.OpenAIEmbedder")
-    @patch("src.rag.indexer.chromadb.PersistentClient")
+    @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
+    @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_index_stats_exclude_reasoning_when_disabled(
         self, mock_chroma, mock_embedder
     ):

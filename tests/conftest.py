@@ -71,7 +71,7 @@ def temp_persist_dir():
 @pytest.fixture
 def mock_openai():
     """Mock OpenAI client for embedding tests."""
-    with patch("src.rag.embedder.OpenAI") as mock_class:
+    with patch("obsidian_rag_mcp.rag.embedder.OpenAI") as mock_class:
         mock_client = Mock()
         mock_class.return_value = mock_client
         mock_client.api_key = "test-key"
@@ -95,7 +95,7 @@ def mock_openai():
 @pytest.fixture
 def sample_chunks():
     """Create sample chunks for testing."""
-    from src.rag.chunker import Chunk
+    from obsidian_rag_mcp.rag.chunker import Chunk
 
     return [
         Chunk(

@@ -45,10 +45,10 @@ dev = [
 ]
 
 [project.scripts]
-obsidian-rag = "src.cli.main:cli"
+obsidian-rag = "obsidian_rag_mcp.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["obsidian_rag_mcp"]
 
 [tool.ruff]
 line-length = 100

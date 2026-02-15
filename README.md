@@ -139,8 +139,8 @@ uv sync
 uv run pytest
 
 # Lint + format
-uv run black src/ tests/
-uv run ruff check src/ tests/
+uv run black obsidian_rag_mcp/ tests/
+uv run ruff check obsidian_rag_mcp/ tests/
 ```
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full guide.

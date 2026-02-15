@@ -4,7 +4,7 @@ import tempfile
 
 from click.testing import CliRunner
 
-from src.cli.main import cli
+from obsidian_rag_mcp.cli.main import cli
 
 
 class TestCLI:
