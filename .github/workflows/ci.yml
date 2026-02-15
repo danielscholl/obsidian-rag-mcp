@@ -51,17 +51,17 @@ jobs:
       - name: Check formatting with black
         id: black
         continue-on-error: true
-        run: black --check src/ tests/ --diff
+        run: black --check obsidian_rag_mcp/ tests/ --diff
 
       - name: Lint with ruff
         id: ruff
         continue-on-error: true
-        run: ruff check src/ tests/
+        run: ruff check obsidian_rag_mcp/ tests/
 
       - name: Security check with bandit
         id: bandit
         continue-on-error: true
-        run: bandit -r src/ -ll -x tests/
+        run: bandit -r obsidian_rag_mcp/ -ll -x tests/
 
       - name: Check dependencies with pip-audit
         id: pip-audit
@@ -75,7 +75,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [[ "${{ steps.black.outcome }}" == "failure" ]]; then
-            echo "❌ **Black:** Run \`black src/ tests/\` to fix" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Black:** Run \`black obsidian_rag_mcp/ tests/\` to fix" >> $GITHUB_STEP_SUMMARY
           else
             echo "✅ **Black:** Formatting passed" >> $GITHUB_STEP_SUMMARY
           fi
@@ -141,7 +141,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           pytest \
-            --cov=src \
+            --cov=obsidian_rag_mcp \
             --cov-report=term-missing \
             --cov-fail-under=50 \
             -v
