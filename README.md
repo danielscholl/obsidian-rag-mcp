@@ -110,6 +110,7 @@ Then ask Claude things like:
 4. **Reasoning** (optional): Extract conclusions from notes at index time for richer search results
 
 **Documentation:**
+- **[Getting Started](docs/GETTING_STARTED.md)** - 5-minute tutorial
 - [Architecture](docs/ARCHITECTURE.md) - System design
 - [Development](docs/DEVELOPMENT.md) - Local setup (includes Windows)
 - [Claude Desktop](docs/CLAUDE_CODE_SETUP.md) - MCP integration
