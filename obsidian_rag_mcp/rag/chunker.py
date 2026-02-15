@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import frontmatter
 import yaml
 
-from src.utils.tokens import count_tokens
+from obsidian_rag_mcp.utils.tokens import count_tokens
 
 logger = logging.getLogger(__name__)
 

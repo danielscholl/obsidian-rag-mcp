@@ -30,7 +30,7 @@ class ConclusionStore:
 
     def __init__(
         self,
-        persist_dir: str = ".chroma",
+        persist_dir: str = ".vault",
         embedder=None,
         chroma_client=None,
     ):

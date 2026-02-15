@@ -100,7 +100,7 @@ Additional context...
 ### Python API
 
 ```python
-from src.rag.engine import RAGEngine
+from obsidian_rag_mcp.rag.engine import RAGEngine
 
 # Initialize
 engine = RAGEngine(

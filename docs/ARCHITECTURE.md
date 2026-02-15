@@ -40,7 +40,7 @@ Semantic search over markdown vaults, exposed as an MCP server for AI assistants
 
 ## Components
 
-### 1. Vault Indexer (`src/rag/indexer.py`)
+### 1. Vault Indexer (`obsidian_rag_mcp/rag/indexer.py`)
 
 Scans, chunks, and embeds vault content.
 
@@ -49,7 +49,7 @@ Scans, chunks, and embeds vault content.
 - **Metadata extraction**: Tags, frontmatter, links
 - **Reasoning extraction**: Optional LLM-based conclusion extraction
 
-### 2. RAG Engine (`src/rag/engine.py`)
+### 2. RAG Engine (`obsidian_rag_mcp/rag/engine.py`)
 
 Query interface for semantic search.
 
@@ -58,12 +58,12 @@ Query interface for semantic search.
 - **Reasoning search**: Search over extracted conclusions
 - **Source attribution**: All results link to source files
 
-### 3. Reasoning Layer (`src/reasoning/`)
+### 3. Reasoning Layer (`obsidian_rag_mcp/reasoning/`)
 
 *Phase 2 feature* - Extracts logical conclusions from content.
 
 ```
-src/reasoning/
+obsidian_rag_mcp/reasoning/
 ├── extractor.py       # LLM-based conclusion extraction
 ├── conclusion_store.py # ChromaDB storage for conclusions
 └── models.py          # Conclusion, ConclusionType dataclasses
@@ -80,7 +80,7 @@ src/reasoning/
 - Confidence scoring
 - Source linking (conclusion → source chunk)
 
-### 4. MCP Server (`src/mcp/server.py`)
+### 4. MCP Server (`obsidian_rag_mcp/mcp/server.py`)
 
 Exposes RAG capabilities via MCP protocol.
 
@@ -98,7 +98,7 @@ Exposes RAG capabilities via MCP protocol.
 | `get_conclusion_trace` | Trace reasoning chain |
 | `explore_connected_conclusions` | Find related conclusions |
 
-### 5. CLI (`src/cli/main.py`)
+### 5. CLI (`obsidian_rag_mcp/cli/main.py`)
 
 Command-line interface.
 
@@ -141,7 +141,7 @@ Query → Embed → ChromaDB Search → Rank → Results
 
 ```
 obsidian-rag-mcp/
-├── src/
+├── obsidian_rag_mcp/
 │   ├── rag/              # Core RAG
 │   │   ├── indexer.py    # Vault indexing
 │   │   ├── chunker.py    # Markdown chunking

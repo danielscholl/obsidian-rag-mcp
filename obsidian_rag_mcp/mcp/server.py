@@ -17,7 +17,7 @@ from mcp.types import (
 )
 
 from mcp.server import Server
-from src.rag import RAGEngine
+from obsidian_rag_mcp.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
 
@@ -594,7 +594,7 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
 def run_server(
     vault_path: str,
-    persist_dir: str = ".chroma",
+    persist_dir: str = ".vault",
     reasoning_enabled: bool = False,
 ):
     """
@@ -654,7 +654,7 @@ def main():
     )
 
     vault_path = os.getenv("OBSIDIAN_VAULT_PATH", "./vault")
-    persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".chroma")
+    persist_dir = os.getenv("CHROMA_PERSIST_DIR", ".vault")
     reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in (
         "true",
         "1",

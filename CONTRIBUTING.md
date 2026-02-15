@@ -21,7 +21,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for Windows instructions.
 1. Create a feature branch: `git checkout -b feature/your-feature`
 2. Make changes
 3. Run tests: `uv run pytest`
-4. Run linting: `uv run black src/ tests/ && uv run ruff check src/ tests/`
+4. Run linting: `uv run black obsidian_rag_mcp/ tests/ && uv run ruff check obsidian_rag_mcp/ tests/`
 5. Commit and push
 6. Open a Pull Request
 7. Wait for CI + Claude review

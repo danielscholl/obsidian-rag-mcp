@@ -37,6 +37,7 @@ ENV/
 
 # ChromaDB
 .chroma/
+.vault/
 
 # Logs
 *.log

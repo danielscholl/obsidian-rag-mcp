@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.rag.embedder import EmbedderConfig, OpenAIEmbedder
+from obsidian_rag_mcp.rag.embedder import EmbedderConfig, OpenAIEmbedder
 
 
 class TestEmbedderConfig:
@@ -34,7 +34,7 @@ class TestEmbedderConfig:
 class TestOpenAIEmbedder:
     """Test OpenAIEmbedder with mocked OpenAI client."""
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_embed_single_text(self, mock_openai_class):
         """Test embedding a single text."""
         # Setup mock
@@ -54,7 +54,7 @@ class TestOpenAIEmbedder:
         assert result == [0.1] * 1536
         mock_client.embeddings.create.assert_called_once()
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_embed_multiple_texts(self, mock_openai_class):
         """Test embedding multiple texts."""
         mock_client = Mock()
@@ -75,7 +75,7 @@ class TestOpenAIEmbedder:
         assert results[0] == [0.1] * 1536
         assert results[1] == [0.2] * 1536
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_empty_input(self, mock_openai_class):
         """Test handling of empty input."""
         mock_client = Mock()
@@ -88,7 +88,7 @@ class TestOpenAIEmbedder:
         assert results == []
         mock_client.embeddings.create.assert_not_called()
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_batching(self, mock_openai_class):
         """Test that large inputs are batched correctly."""
         mock_client = Mock()
@@ -120,7 +120,7 @@ class TestOpenAIEmbedder:
         assert len(results) == 12
         assert mock_client.embeddings.create.call_count == 3
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_text_cleaning(self, mock_openai_class):
         """Test that text is cleaned before embedding."""
         mock_client = Mock()
@@ -145,7 +145,7 @@ class TestOpenAIEmbedder:
         # but trailing whitespace on lines is stripped
         assert not sent_text.endswith(" ")  # Trailing whitespace stripped
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_embedding_dimension_property(self, mock_openai_class):
         """Test embedding dimension property."""
         mock_client = Mock()
@@ -167,7 +167,7 @@ class TestOpenAIEmbedder:
         assert embedder.embedding_dimension == 512
 
     @patch.dict("os.environ", {"OPENAI_API_KEY": ""}, clear=False)
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_missing_api_key(self, mock_openai_class):
         """Test error when no API key provided."""
         mock_client = Mock()
@@ -177,7 +177,7 @@ class TestOpenAIEmbedder:
         with pytest.raises(ValueError, match="API key required"):
             OpenAIEmbedder()
 
-    @patch("src.rag.embedder.OpenAI")
+    @patch("obsidian_rag_mcp.rag.embedder.OpenAI")
     def test_batch_mismatch_raises_error(self, mock_openai_class):
         """Test that mismatched embedding count raises RuntimeError.
 

@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.rag.engine import RAGEngine
-from src.rag.indexer import IndexerConfig, VaultIndexer
+from obsidian_rag_mcp.rag.engine import RAGEngine
+from obsidian_rag_mcp.rag.indexer import IndexerConfig, VaultIndexer
 
 
 @pytest.fixture
@@ -36,8 +36,8 @@ def temp_dirs():
 def mock_openai_embeddings():
     """Mock OpenAI for both embedder and extractor."""
     with (
-        patch("src.rag.embedder.OpenAI") as mock_embedder_class,
-        patch("src.reasoning.extractor.OpenAI") as mock_extractor_class,
+        patch("obsidian_rag_mcp.rag.embedder.OpenAI") as mock_embedder_class,
+        patch("obsidian_rag_mcp.reasoning.extractor.OpenAI") as mock_extractor_class,
     ):
         # Setup embedder mock
         mock_embedder = Mock()

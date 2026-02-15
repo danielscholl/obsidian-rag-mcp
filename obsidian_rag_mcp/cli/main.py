@@ -22,11 +22,11 @@ def cli():
 @click.argument("vault_path", type=click.Path(exists=True))
 @click.option("--force", "-f", is_flag=True, help="Force reindex all files")
 @click.option(
-    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+    "--persist-dir", "-p", default=".vault", help="ChromaDB storage directory"
 )
 def index(vault_path: str, force: bool, persist_dir: str):
     """Index an Obsidian vault for semantic search."""
-    from src.rag import RAGEngine
+    from obsidian_rag_mcp.rag import RAGEngine
 
     click.echo(f"Indexing vault: {vault_path}")
 
@@ -62,7 +62,7 @@ def validate_top_k(ctx, param, value):
     help="Path to Obsidian vault",
 )
 @click.option(
-    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+    "--persist-dir", "-p", default=".vault", help="ChromaDB storage directory"
 )
 @click.option(
     "--top-k",
@@ -81,7 +81,7 @@ def search(
     if not query or not query.strip():
         raise click.UsageError("Query cannot be empty")
 
-    from src.rag import RAGEngine
+    from obsidian_rag_mcp.rag import RAGEngine
 
     engine = RAGEngine(
         vault_path=vault,
@@ -120,11 +120,11 @@ def search(
     help="Path to Obsidian vault",
 )
 @click.option(
-    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+    "--persist-dir", "-p", default=".vault", help="ChromaDB storage directory"
 )
 def stats(vault: str, persist_dir: str):
     """Show index statistics."""
-    from src.rag import RAGEngine
+    from obsidian_rag_mcp.rag import RAGEngine
 
     engine = RAGEngine(
         vault_path=vault,
@@ -147,11 +147,11 @@ def stats(vault: str, persist_dir: str):
     help="Path to Obsidian vault",
 )
 @click.option(
-    "--persist-dir", "-p", default=".chroma", help="ChromaDB storage directory"
+    "--persist-dir", "-p", default=".vault", help="ChromaDB storage directory"
 )
 def serve(vault: str, persist_dir: str):
     """Start the MCP server (stdio transport)."""
-    from src.mcp.server import run_server
+    from obsidian_rag_mcp.mcp.server import run_server
 
     # Log to stderr to avoid interfering with MCP JSON-RPC on stdout
     click.echo(f"Starting MCP server for vault: {vault}", err=True)

@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.rag.engine import (
+from obsidian_rag_mcp.rag.engine import (
     ConclusionResult,
     RAGEngine,
     SearchResponse,
@@ -95,7 +95,7 @@ class TestSearchResponse:
 class TestRAGEngine:
     """Test RAGEngine with mocked dependencies."""
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_initialization(self, mock_indexer_class):
         """Test engine initialization."""
         mock_indexer = Mock()
@@ -113,7 +113,7 @@ class TestRAGEngine:
             assert engine is not None
             mock_indexer_class.assert_called_once()
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_search(self, mock_indexer_class):
         """Test search functionality."""
         # Setup mocks
@@ -168,7 +168,7 @@ class TestRAGEngine:
             assert response.results[1].source_path == "ml.md"
             assert response.query == "python programming"
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_search_with_tag_filter(self, mock_indexer_class):
         """Test search with tag filtering."""
         mock_indexer = Mock()
@@ -201,7 +201,7 @@ class TestRAGEngine:
             call_args = mock_collection.query.call_args
             assert "where_document" in call_args.kwargs
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_min_score_filtering(self, mock_indexer_class):
         """Test that results below min_score are filtered."""
         mock_indexer = Mock()
@@ -260,7 +260,7 @@ class TestRAGEngine:
             assert len(response.results) == 2
             assert all(r.score >= 0.4 for r in response.results)
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_empty_results(self, mock_indexer_class):
         """Test handling of empty results."""
         mock_indexer = Mock()
@@ -292,7 +292,7 @@ class TestRAGEngine:
             assert response.results == []
             assert response.query == "nonexistent topic"
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_get_note(self, mock_indexer_class):
         """Test getting a note by path."""
         mock_indexer = Mock()
@@ -317,7 +317,7 @@ class TestRAGEngine:
 
             assert content == "# Test\n\nContent here."
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_get_note_nonexistent(self, mock_indexer_class):
         """Test getting a nonexistent note."""
         mock_indexer = Mock()
@@ -336,7 +336,7 @@ class TestRAGEngine:
 
             assert content is None
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_get_note_path_traversal_blocked(self, mock_indexer_class):
         """Test that path traversal attempts are blocked."""
         mock_indexer = Mock()
@@ -356,7 +356,7 @@ class TestRAGEngine:
 
             assert content is None
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_search_empty_query_raises_error(self, mock_indexer_class):
         """Test that empty query raises ValueError."""
         mock_indexer = Mock()
@@ -379,7 +379,7 @@ class TestRAGEngine:
             with pytest.raises(ValueError, match="Query cannot be empty"):
                 engine.search("   ")
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_search_invalid_top_k_raises_error(self, mock_indexer_class):
         """Test that invalid top_k values raise ValueError."""
         mock_indexer = Mock()
@@ -448,7 +448,7 @@ class TestConclusionResult:
 
     def test_to_dict_with_source_chunk(self):
         """Test serialization includes source chunk when present."""
-        from src.rag.engine import SourceEvidence
+        from obsidian_rag_mcp.rag.engine import SourceEvidence
 
         source = SourceEvidence(
             chunk_id="doc:0",
@@ -533,7 +533,7 @@ class TestSearchWithReasoningResponse:
 class TestSearchWithReasoning:
     """Test search_with_reasoning functionality."""
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_empty_conclusions_when_reasoning_disabled(
         self, mock_indexer_class
     ):
@@ -580,7 +580,7 @@ class TestSearchWithReasoning:
             assert response.conclusions == []
             assert response.total_conclusions_searched == 0
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_conclusions_when_reasoning_enabled(self, mock_indexer_class):
         """Test search_with_reasoning returns conclusions when enabled."""
         mock_indexer = Mock()
@@ -651,7 +651,7 @@ class TestSearchWithReasoning:
 class TestGetConclusionTrace:
     """Test get_conclusion_trace functionality."""
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_none_when_reasoning_disabled(self, mock_indexer_class):
         """Test returns None when reasoning is disabled."""
         mock_indexer = Mock()
@@ -671,7 +671,7 @@ class TestGetConclusionTrace:
             result = engine.get_conclusion_trace("nonexistent")
             assert result is None
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_none_for_nonexistent_conclusion(self, mock_indexer_class):
         """Test returns None when conclusion not found."""
         mock_indexer = Mock()
@@ -695,7 +695,7 @@ class TestGetConclusionTrace:
             result = engine.get_conclusion_trace("nonexistent")
             assert result is None
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_trace_for_valid_conclusion(self, mock_indexer_class):
         """Test returns trace for valid conclusion."""
         mock_indexer = Mock()
@@ -760,7 +760,7 @@ class TestGetConclusionTrace:
 class TestExploreConnectedConclusions:
     """Test explore_connected_conclusions functionality."""
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_returns_empty_when_reasoning_disabled(self, mock_indexer_class):
         """Test returns empty list when reasoning disabled."""
         mock_indexer = Mock()
@@ -780,7 +780,7 @@ class TestExploreConnectedConclusions:
             result = engine.explore_connected_conclusions(query="test")
             assert result == []
 
-    @patch("src.rag.engine.VaultIndexer")
+    @patch("obsidian_rag_mcp.rag.engine.VaultIndexer")
     def test_search_by_query(self, mock_indexer_class):
         """Test searching by query text."""
         mock_indexer = Mock()
