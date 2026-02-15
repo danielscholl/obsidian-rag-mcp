@@ -37,7 +37,7 @@ def estimate_tokens(text: str) -> int:
 class ExtractorConfig:
     """Configuration for the conclusion extractor."""
 
-    model: str = "gpt-5-mini"
+    model: str = "gpt-4.1-mini"
     max_conclusions_per_chunk: int = 5
     min_confidence: float = 0.5
     temperature: float = 0.3

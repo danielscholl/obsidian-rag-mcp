@@ -133,7 +133,7 @@ class TestExtractorConfig:
     def test_defaults(self):
         """Test default configuration."""
         config = ExtractorConfig()
-        assert config.model == "gpt-5-mini"
+        assert config.model == "gpt-4.1-mini"
         assert config.extract_deductive is True
         assert config.extract_abductive is False
 
