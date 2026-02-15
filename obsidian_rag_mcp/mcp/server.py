@@ -9,6 +9,7 @@ import logging
 import os
 from typing import Any
 
+from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import (
     CallToolResult,
@@ -16,7 +17,6 @@ from mcp.types import (
     Tool,
 )
 
-from mcp.server import Server
 from obsidian_rag_mcp.rag import RAGEngine
 
 logger = logging.getLogger(__name__)
