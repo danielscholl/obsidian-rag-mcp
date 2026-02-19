@@ -43,9 +43,7 @@ def _create_openai_client(api_key: str | None = None) -> OpenAI:
     azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
     azure_api_key = os.getenv("AZURE_API_KEY", "")
     azure_api_version = os.getenv("AZURE_OPENAI_VERSION", "2024-10-21")
-    azure_deployment = os.getenv(
-        "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
-    )
+    azure_deployment = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 
     if azure_endpoint and azure_api_key:
         base_url = f"{azure_endpoint}/openai/deployments/{azure_deployment}"
