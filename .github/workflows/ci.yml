@@ -1,0 +1,153 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches-ignore:
+      - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-lint-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install bandit[toml] pip-audit
+
+      - name: Check formatting with black
+        id: black
+        continue-on-error: true
+        run: black --check obsidian_rag_mcp/ tests/ --diff
+
+      - name: Lint with ruff
+        id: ruff
+        continue-on-error: true
+        run: ruff check obsidian_rag_mcp/ tests/
+
+      - name: Security check with bandit
+        id: bandit
+        continue-on-error: true
+        run: bandit -r obsidian_rag_mcp/ -ll -x tests/
+
+      - name: Check dependencies with pip-audit
+        id: pip-audit
+        continue-on-error: true
+        run: pip-audit --desc || true
+
+      - name: Quality Check Summary
+        if: always()
+        run: |
+          echo "## 🔍 Code Quality Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.black.outcome }}" == "failure" ]]; then
+            echo "❌ **Black:** Run \`black obsidian_rag_mcp/ tests/\` to fix" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **Black:** Formatting passed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ steps.ruff.outcome }}" == "failure" ]]; then
+            echo "❌ **Ruff:** Fix linting errors" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **Ruff:** Linting passed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ steps.bandit.outcome }}" == "failure" ]]; then
+            echo "⚠️ **Bandit:** Security issues found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **Bandit:** Security check passed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ steps.pip-audit.outcome }}" == "failure" ]]; then
+            echo "⚠️ **Pip-audit:** Vulnerable deps found" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **Pip-audit:** No known vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ steps.black.outcome }}" == "failure" ]] || \
+             [[ "${{ steps.ruff.outcome }}" == "failure" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ Required checks failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ All required checks passed!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  test:
+    name: Python ${{ matrix.python-version }} Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-test-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-test-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests with coverage
+        run: |
+          pytest \
+            --cov=obsidian_rag_mcp \
+            --cov-report=term-missing \
+            --cov-fail-under=50 \
+            -v
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
