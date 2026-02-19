@@ -122,9 +122,15 @@ Then ask Claude things like:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | For embeddings (and reasoning if enabled) |
+| `OPENAI_API_KEY` | Yes* | For embeddings (and reasoning if enabled) |
+| `AZURE_OPENAI_ENDPOINT` | No* | Azure OpenAI endpoint URL |
+| `AZURE_API_KEY` | No* | Azure OpenAI API key |
+| `AZURE_OPENAI_VERSION` | No | Azure API version (default: `2024-10-21`) |
+| `AZURE_EMBEDDING_DEPLOYMENT` | No | Azure deployment name (default: `text-embedding-3-small`) |
 | `VAULT_PATH` | No | Default vault path |
 | `REASONING_ENABLED` | No | Enable conclusion extraction (default: false) |
+
+\* Either `OPENAI_API_KEY` **or** `AZURE_OPENAI_ENDPOINT` + `AZURE_API_KEY` is required. When both Azure variables are set, Azure OpenAI is used automatically.
 
 **Cost**: ~$0.02 to index 100 notes. Queries are essentially free.
 

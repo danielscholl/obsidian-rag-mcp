@@ -1,11 +1,15 @@
 """
 OpenAI embedding wrapper with batching, retries, and logging.
+
+Supports both OpenAI and Azure OpenAI endpoints. Azure OpenAI is auto-detected
+when AZURE_OPENAI_ENDPOINT and AZURE_API_KEY environment variables are set.
 """
 
 import logging
 import os
 from dataclasses import dataclass
 
+import httpx
 from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 from tenacity import (
     before_sleep_log,
@@ -29,6 +33,36 @@ class EmbedderConfig:
     query_max_chars: int = 8000  # Stricter limit for queries
 
 
+def _create_openai_client(api_key: str | None = None) -> OpenAI:
+    """
+    Create an OpenAI client, auto-detecting Azure OpenAI when configured.
+
+    Azure OpenAI is used when AZURE_OPENAI_ENDPOINT and AZURE_API_KEY are set.
+    Falls back to standard OpenAI using OPENAI_API_KEY.
+    """
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    azure_api_key = os.getenv("AZURE_API_KEY", "")
+    azure_api_version = os.getenv("AZURE_OPENAI_VERSION", "2024-10-21")
+    azure_deployment = os.getenv(
+        "AZURE_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
+    )
+
+    if azure_endpoint and azure_api_key:
+        base_url = f"{azure_endpoint}/openai/deployments/{azure_deployment}"
+        logger.info(f"Using Azure OpenAI endpoint: {azure_endpoint}")
+        return OpenAI(
+            api_key=azure_api_key,
+            base_url=base_url,
+            default_query={"api-version": azure_api_version},
+            http_client=httpx.Client(
+                headers={"api-key": azure_api_key},
+            ),
+        )
+
+    resolved_key = api_key or os.getenv("OPENAI_API_KEY")
+    return OpenAI(api_key=resolved_key)
+
+
 class OpenAIEmbedder:
     """
     Wrapper around OpenAI's embedding API.
@@ -38,18 +72,20 @@ class OpenAIEmbedder:
     - Automatic retries with exponential backoff
     - Configurable model and dimensions
     - Simple interface
+    - Auto-detects Azure OpenAI via environment variables
     """
 
     def __init__(
         self, api_key: str | None = None, config: EmbedderConfig | None = None
     ):
         self.config = config or EmbedderConfig()
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        self.client = _create_openai_client(api_key)
 
         # Validate API key
         if not self.client.api_key:
             raise ValueError(
-                "OpenAI API key required. Set OPENAI_API_KEY environment variable."
+                "OpenAI API key required. Set OPENAI_API_KEY environment variable "
+                "or AZURE_OPENAI_ENDPOINT + AZURE_API_KEY for Azure OpenAI."
             )
 
         logger.debug(f"Initialized embedder with model={self.config.model}")
