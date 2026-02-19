@@ -37,9 +37,21 @@ def _create_openai_client(api_key: str | None = None) -> OpenAI:
     """
     Create an OpenAI client, auto-detecting Azure OpenAI when configured.
 
-    Azure OpenAI is used when AZURE_OPENAI_ENDPOINT and AZURE_API_KEY are set.
-    Falls back to standard OpenAI using OPENAI_API_KEY.
+    Precedence:
+    1. Explicit api_key parameter → standard OpenAI
+    2. AZURE_OPENAI_ENDPOINT + AZURE_API_KEY → Azure OpenAI
+    3. OPENAI_API_KEY env var → standard OpenAI
     """
+    # Explicit api_key takes precedence over Azure env vars
+    if api_key:
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+        if azure_endpoint:
+            logger.warning(
+                "Explicit api_key provided; ignoring AZURE_OPENAI_ENDPOINT. "
+                "Remove api_key to use Azure OpenAI."
+            )
+        return OpenAI(api_key=api_key)
+
     azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
     azure_api_key = os.getenv("AZURE_API_KEY", "")
     azure_api_version = os.getenv("AZURE_OPENAI_VERSION", "2024-10-21")
@@ -57,8 +69,7 @@ def _create_openai_client(api_key: str | None = None) -> OpenAI:
             ),
         )
 
-    resolved_key = api_key or os.getenv("OPENAI_API_KEY")
-    return OpenAI(api_key=resolved_key)
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 class OpenAIEmbedder:
