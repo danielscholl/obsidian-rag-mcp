@@ -23,6 +23,7 @@ Each ADR includes:
 | [0001](0001-chromadb.md) | Use ChromaDB for Vector Storage | Accepted |
 | [0002](0002-ci-health-checks.md) | CI Health Checks as Quality Gates | Accepted |
 | [0003](0003-openai-embeddings.md) | Use OpenAI Embeddings for Semantic Search | Accepted |
+| [0004](adr-0004-memory-as-reasoning.md) | Memory as Reasoning | Proposed |
 
 ## Adding a New ADR
 

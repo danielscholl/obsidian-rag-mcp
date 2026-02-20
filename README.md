@@ -74,7 +74,7 @@ Add to `~/.claude/claude_desktop_config.json`:
       "command": "uv",
       "args": ["run", "--directory", "/path/to/obsidian-rag-mcp", "obsidian-rag", "serve"],
       "env": {
-        "VAULT_PATH": "/path/to/your/vault",
+        "OBSIDIAN_VAULT_PATH": "/path/to/your/vault",
         "OPENAI_API_KEY": "sk-..."
       }
     }
@@ -127,7 +127,7 @@ Then ask Claude things like:
 | `AZURE_API_KEY` | No* | Azure OpenAI API key |
 | `AZURE_OPENAI_VERSION` | No | Azure API version (default: `2024-10-21`) |
 | `AZURE_EMBEDDING_DEPLOYMENT` | No | Azure deployment name (default: `text-embedding-3-small`) |
-| `VAULT_PATH` | No | Default vault path |
+| `OBSIDIAN_VAULT_PATH` | No | Default vault path |
 | `REASONING_ENABLED` | No | Enable conclusion extraction (default: false) |
 
 \* Either `OPENAI_API_KEY` **or** `AZURE_OPENAI_ENDPOINT` + `AZURE_API_KEY` is required. When both Azure variables are set, Azure OpenAI is used automatically.
@@ -141,7 +141,7 @@ Then ask Claude things like:
 ```bash
 uv sync
 
-# Tests (88 passing)
+# Tests
 uv run pytest
 
 # Lint + format
