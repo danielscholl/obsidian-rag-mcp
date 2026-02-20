@@ -8,13 +8,13 @@ indexed content to build a reasoning layer.
 import hashlib
 import json
 import logging
-import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from openai import APIError, OpenAI, RateLimitError
+from openai import APIError, RateLimitError
 
+from obsidian_rag_mcp.rag.embedder import _create_openai_client
 from obsidian_rag_mcp.utils.tokens import count_tokens
 
 from .models import ChunkContext, Conclusion, ConclusionType
@@ -144,11 +144,12 @@ class ConclusionExtractor:
         config: ExtractorConfig | None = None,
     ):
         self.config = config or ExtractorConfig()
-        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
+        self.client = _create_openai_client(api_key)
 
         if not self.client.api_key:
             raise ValueError(
-                "OpenAI API key required. Set OPENAI_API_KEY environment variable."
+                "OpenAI API key required. Set OPENAI_API_KEY environment variable "
+                "or AZURE_OPENAI_ENDPOINT + AZURE_API_KEY for Azure OpenAI."
             )
 
         logger.debug(f"Initialized extractor with model={self.config.model}")
@@ -261,19 +262,11 @@ class ConclusionExtractor:
                     conclusion_type = ConclusionType.DEDUCTIVE
 
                 # Skip types we're not extracting
-                is_deductive = conclusion_type == ConclusionType.DEDUCTIVE
-                is_inductive = conclusion_type == ConclusionType.INDUCTIVE
-                is_abductive = conclusion_type == ConclusionType.ABDUCTIVE
-
-                if is_deductive and not self.config.extract_deductive:
-                    continue
-                if is_inductive and not self.config.extract_inductive:
-                    continue
-                if is_abductive and not self.config.extract_abductive:
+                if not self._should_include_conclusion(conclusion_type):
                     continue
 
                 # Generate unique ID
-                conclusion_id = self._generate_id(statement, chunk_id)
+                conclusion_id = self._generate_id(statement)
 
                 conclusions.append(
                     Conclusion(
@@ -300,17 +293,35 @@ class ConclusionExtractor:
             logger.error(f"Error extracting conclusions: {e}")
             return []
 
-    def _generate_id(self, statement: str, chunk_id: str) -> str:
+    def _should_include_conclusion(self, conclusion_type: ConclusionType) -> bool:
+        """Check if a conclusion type should be included based on config."""
+        if (
+            conclusion_type == ConclusionType.DEDUCTIVE
+            and not self.config.extract_deductive
+        ):
+            return False
+        if (
+            conclusion_type == ConclusionType.INDUCTIVE
+            and not self.config.extract_inductive
+        ):
+            return False
+        if (
+            conclusion_type == ConclusionType.ABDUCTIVE
+            and not self.config.extract_abductive
+        ):
+            return False
+        return True
+
+    def _generate_id(self, statement: str) -> str:
         """Generate a deterministic ID for a conclusion.
 
         IDs are based solely on the normalized statement text (lowercase,
-        stripped), ignoring the chunk_id. This ensures the same statement
-        extracted from different chunks produces the same ID, enabling
-        idempotent deduplication during reindexing.
+        stripped). This ensures the same statement extracted from different
+        chunks produces the same ID, enabling idempotent deduplication
+        during reindexing.
 
         Args:
             statement: The conclusion statement text.
-            chunk_id: Source chunk ID (ignored for ID generation).
 
         Returns:
             32-character hex ID derived from the normalized statement.
@@ -450,23 +461,10 @@ class ConclusionExtractor:
                         conclusion_type = ConclusionType.DEDUCTIVE
 
                     # Filter by enabled types
-                    if (
-                        conclusion_type == ConclusionType.DEDUCTIVE
-                        and not self.config.extract_deductive
-                    ):
-                        continue
-                    if (
-                        conclusion_type == ConclusionType.INDUCTIVE
-                        and not self.config.extract_inductive
-                    ):
-                        continue
-                    if (
-                        conclusion_type == ConclusionType.ABDUCTIVE
-                        and not self.config.extract_abductive
-                    ):
+                    if not self._should_include_conclusion(conclusion_type):
                         continue
 
-                    conclusion_id = self._generate_id(statement, chunk_id)
+                    conclusion_id = self._generate_id(statement)
                     conclusions.append(
                         Conclusion(
                             id=conclusion_id,
