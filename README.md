@@ -4,8 +4,10 @@
 
 An MCP server that gives Claude Code semantic search over your Obsidian vault. Ask questions in natural language, get answers from your own documents.
 
+[![CI](https://github.com/danielscholl/obsidian-rag-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/danielscholl/obsidian-rag-mcp/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io)
 
 ---
 
@@ -164,3 +166,11 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full guide.
 ## License
 
 MIT
+
+---
+
+<div align="center">
+
+[Getting Started](docs/GETTING_STARTED.md) | [Architecture](docs/ARCHITECTURE.md) | [Development](docs/DEVELOPMENT.md) | [Claude Desktop](docs/CLAUDE_CODE_SETUP.md) | [Integration](docs/INTEGRATION.md)
+
+</div>
