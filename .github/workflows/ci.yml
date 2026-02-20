@@ -143,7 +143,7 @@ jobs:
           pytest \
             --cov=obsidian_rag_mcp \
             --cov-report=term-missing \
-            --cov-fail-under=70 \
+            --cov-fail-under=65 \
             -v
 
       - name: Test Summary

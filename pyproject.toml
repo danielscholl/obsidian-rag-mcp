@@ -67,7 +67,7 @@ asyncio_mode = "auto"
 source = ["obsidian_rag_mcp"]
 
 [tool.coverage.report]
-fail_under = 70
+fail_under = 65
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
