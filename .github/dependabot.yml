@@ -9,11 +9,28 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "04:00"
     groups:
-      # Group all Python package updates into a single PR
-      python-packages:
+      # Dev dependencies (test, lint, format)
+      python-dev:
+        patterns:
+          - "pytest*"
+          - "mypy"
+          - "ruff"
+          - "black"
+          - "bandit*"
+          - "pip-audit"
+      # Production dependencies (everything else)
+      python-prod:
         patterns:
           - "*"
+        exclude-patterns:
+          - "pytest*"
+          - "mypy"
+          - "ruff"
+          - "black"
+          - "bandit*"
+          - "pip-audit"
     commit-message:
       prefix: "deps"
     labels:
@@ -31,3 +48,4 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    open-pull-requests-limit: 3
