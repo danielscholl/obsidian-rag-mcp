@@ -14,8 +14,7 @@ def temp_vault():
         vault_path = Path(tmpdir)
 
         # Create some sample markdown files
-        (vault_path / "note1.md").write_text(
-            """---
+        (vault_path / "note1.md").write_text("""---
 title: First Note
 tags: [important, test]
 ---
@@ -31,11 +30,9 @@ Details about section one.
 ## Section Two
 
 Details about section two.
-"""
-        )
+""")
 
-        (vault_path / "note2.md").write_text(
-            """# Second Note
+        (vault_path / "note2.md").write_text("""# Second Note
 
 This note discusses #python and #programming topics.
 
@@ -45,19 +42,16 @@ Some code example:
 def hello():
     return "world"
 ```
-"""
-        )
+""")
 
         # Create a subdirectory with more notes
         subdir = vault_path / "subfolder"
         subdir.mkdir()
 
-        (subdir / "nested-note.md").write_text(
-            """# Nested Note
+        (subdir / "nested-note.md").write_text("""# Nested Note
 
 This is a note in a subfolder. It talks about #nested #organization.
-"""
-        )
+""")
 
         # Create .obsidian directory (should be ignored)
         obsidian_dir = vault_path / ".obsidian"
