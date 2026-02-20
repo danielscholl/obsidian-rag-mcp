@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "obsidian-rag": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "obsidian-rag", "serve"],
+      "env": {}
+    }
+  }
+}
