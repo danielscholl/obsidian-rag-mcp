@@ -11,7 +11,6 @@ Creates realistic DevOps RCA reports covering common scenarios:
 - Kubernetes/container issues
 """
 
-import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,7 +18,7 @@ from pathlib import Path
 # Sample data for generating RCAs
 SERVICES = [
     "billing-api",
-    "user-service", 
+    "user-service",
     "payment-gateway",
     "notification-service",
     "inventory-api",
@@ -149,30 +148,30 @@ def generate_timeline(start_time: datetime, duration: int) -> str:
         (int(duration * 0.8), "Service recovery observed"),
         (duration, "Incident resolved"),
     ]
-    
+
     lines = []
     for offset, event in events:
         time = start_time + timedelta(minutes=offset)
         lines.append(f"| {time.strftime('%H:%M')} | {event} |")
-    
+
     return "\n".join(lines)
 
 
 def generate_rca(index: int, base_date: datetime) -> tuple[str, str]:
     """Generate a single RCA document."""
-    
+
     issue_type, category, severity = random.choice(ISSUE_TYPES)
     primary_service = random.choice(SERVICES)
     affected_services = random.sample(SERVICES, random.randint(1, 3))
     if primary_service not in affected_services:
         affected_services.insert(0, primary_service)
-    
+
     database = random.choice(DATABASES) if category == "database" else None
     cloud_service = random.choice(CLOUD_SERVICES) if category == "infrastructure" else None
-    
+
     duration = random.randint(15, 180)
     incident_date = base_date - timedelta(days=random.randint(1, 365))
-    
+
     # Generate content based on issue type
     if category == "database":
         issue_description = f"a {issue_type.lower()} in {database}"
@@ -252,7 +251,7 @@ Investigation revealed multiple contributing factors:
 2. Test coverage did not include edge cases
 3. Monitoring gaps delayed detection
 """
-        resolution = f"""
+        resolution = """
 1. Deployed hotfix to address the immediate issue
 2. Added regression tests for the affected code path
 3. Implemented additional monitoring and alerting
@@ -261,7 +260,7 @@ Investigation revealed multiple contributing factors:
 
     # Build the document
     title = f"{incident_date.strftime('%Y-%m-%d')} - {issue_type} in {primary_service}"
-    
+
     content = RCA_TEMPLATE.format(
         title=title,
         date=incident_date.strftime("%Y-%m-%d"),
@@ -318,9 +317,9 @@ Investigation revealed multiple contributing factors:
 """,
         report_date=(incident_date + timedelta(days=random.randint(1, 5))).strftime("%Y-%m-%d"),
     )
-    
+
     filename = f"{incident_date.strftime('%Y-%m-%d')}-{issue_type.lower().replace(' ', '-').replace('/', '-')}.md"
-    
+
     return filename, content
 
 
@@ -402,7 +401,7 @@ The {service} is a critical component of our platform. This runbook provides ope
 - [[architecture-{service}|Architecture Overview]]
 - [[deployment-{service}|Deployment Guide]]
 '''
-    
+
     return f"runbook-{service}.md", content
 
 
@@ -462,50 +461,50 @@ kubectl apply -f k8s/{service}/
 - [[runbook-{service}|Operational Runbook]]
 - [[rca-{service}|Past Incidents]]
 '''
-    
+
     return f"{service}.md", content
 
 
 def main():
     """Generate the sample vault."""
     vault_path = Path(__file__).parent.parent / "vault"
-    
+
     # Create directories
     (vault_path / "RCAs").mkdir(parents=True, exist_ok=True)
     (vault_path / "Runbooks").mkdir(parents=True, exist_ok=True)
     (vault_path / "Services").mkdir(parents=True, exist_ok=True)
-    
+
     base_date = datetime.now()
-    
+
     # Generate RCAs (100 documents)
     print("Generating RCA documents...")
     for i in range(100):
         filename, content = generate_rca(i, base_date)
         filepath = vault_path / "RCAs" / filename
-        
+
         # Avoid duplicates
         counter = 1
         while filepath.exists():
             name, ext = filename.rsplit('.', 1)
             filepath = vault_path / "RCAs" / f"{name}-{counter}.{ext}"
             counter += 1
-        
+
         filepath.write_text(content)
         if (i + 1) % 20 == 0:
             print(f"  Generated {i + 1} RCAs...")
-    
+
     # Generate runbooks
     print("Generating runbooks...")
     for service in SERVICES:
         filename, content = generate_runbook(service)
         (vault_path / "Runbooks" / filename).write_text(content)
-    
+
     # Generate service docs
     print("Generating service documentation...")
     for service in SERVICES:
         filename, content = generate_service_doc(service)
         (vault_path / "Services" / filename).write_text(content)
-    
+
     # Create vault README
     readme = f'''---
 title: "DevOps Knowledge Base"
@@ -544,9 +543,9 @@ Use semantic search to find related incidents:
 - "deployment failures" - finds rollback and deployment issues
 - "kubernetes problems" - finds container and pod issues
 '''
-    
+
     (vault_path / "README.md").write_text(readme)
-    
+
     print(f"\nVault generated at: {vault_path}")
     print(f"  - {len(list((vault_path / 'RCAs').glob('*.md')))} RCA documents")
     print(f"  - {len(list((vault_path / 'Runbooks').glob('*.md')))} Runbooks")

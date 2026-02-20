@@ -654,8 +654,6 @@ def run_server(
         return await handle_tool_call(name, arguments)
 
     # Run the server over stdio
-    import asyncio
-
     async def run():
         async with stdio_server() as (read_stream, write_stream):
             await server.run(
