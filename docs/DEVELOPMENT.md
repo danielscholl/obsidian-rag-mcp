@@ -76,7 +76,7 @@ uv run obsidian-rag search "database issues" --vault .\vault
 ## Running Tests
 
 ```bash
-# All tests (88 passing)
+# All tests
 uv run pytest
 
 # Specific module
@@ -129,20 +129,14 @@ obsidian_rag_mcp/
     ├── conclusion_store.py # ChromaDB storage
     └── models.py         # Data models
 
-tests/             # pytest tests (88 tests)
+tests/             # pytest tests
 vault/             # Sample Obsidian vault for testing
 docs/              # Documentation
 ```
 
 ## Reasoning Layer
 
-Enable conclusion extraction with:
-
-```bash
-uv run obsidian-rag index --vault ./vault --reasoning
-```
-
-Or set environment variable:
+Enable conclusion extraction with the `REASONING_ENABLED` environment variable:
 - Linux/macOS: `export REASONING_ENABLED=true`
 - Windows PowerShell: `$env:REASONING_ENABLED = "true"`
 - Windows CMD: `set REASONING_ENABLED=true`

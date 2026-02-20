@@ -33,7 +33,7 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for Windows instructions.
 - Lint with `ruff`
 - Type hints encouraged
 - Tests required for new features
-- 88 tests currently passing
+- Tests required for new features
 
 ## Testing
 

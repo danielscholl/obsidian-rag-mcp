@@ -65,7 +65,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ### With Reasoning Enabled
 
-Add `--reasoning` to the args:
+Add the `REASONING_ENABLED` environment variable:
 
 ```json
 {
@@ -76,11 +76,11 @@ Add `--reasoning` to the args:
         "run",
         "--directory", "/path/to/obsidian-rag-mcp",
         "obsidian-rag", "serve",
-        "--vault", "/path/to/your/vault",
-        "--reasoning"
+        "--vault", "/path/to/your/vault"
       ],
       "env": {
-        "OPENAI_API_KEY": "sk-..."
+        "OPENAI_API_KEY": "sk-...",
+        "REASONING_ENABLED": "true"
       }
     }
   }

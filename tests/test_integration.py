@@ -73,19 +73,23 @@ class TestIndexThenSearch:
         vault_path = Path(vault_dir)
 
         # Create test notes
-        (vault_path / "database.md").write_text("""# Database Guide
+        (vault_path / "database.md").write_text(
+            """# Database Guide
 
 PostgreSQL is a powerful relational database.
 
 ## Connection Pooling
 
 Connection pooling improves performance.
-""")
+"""
+        )
 
-        (vault_path / "networking.md").write_text("""# Networking Basics
+        (vault_path / "networking.md").write_text(
+            """# Networking Basics
 
 TCP/IP is the foundation of internet communication.
-""")
+"""
+        )
 
         # Index the vault
         config = IndexerConfig(
@@ -212,29 +216,35 @@ TCP/IP is the foundation of internet communication.
         vault_path = Path(vault_dir)
 
         # Create notes with different tags
-        (vault_path / "python.md").write_text("""---
+        (vault_path / "python.md").write_text(
+            """---
 tags: [python, programming]
 ---
 # Python Guide
 
 Python is a great language.
-""")
+"""
+        )
 
-        (vault_path / "rust.md").write_text("""---
+        (vault_path / "rust.md").write_text(
+            """---
 tags: [rust, programming]
 ---
 # Rust Guide
 
 Rust is a systems language.
-""")
+"""
+        )
 
-        (vault_path / "cooking.md").write_text("""---
+        (vault_path / "cooking.md").write_text(
+            """---
 tags: [recipes, food]
 ---
 # Cooking Guide
 
 How to cook pasta.
-""")
+"""
+        )
 
         # Index
         config = IndexerConfig(
@@ -302,11 +312,13 @@ class TestReasoningPipeline:
         vault_path = Path(vault_dir)
 
         # Create a note with extractable content
-        (vault_path / "database.md").write_text("""# Database Fundamentals
+        (vault_path / "database.md").write_text(
+            """# Database Fundamentals
 
 PostgreSQL is an ACID-compliant relational database management system.
 It supports transactions, ensuring data integrity.
-""")
+"""
+        )
 
         # Index with reasoning enabled
         config = IndexerConfig(
