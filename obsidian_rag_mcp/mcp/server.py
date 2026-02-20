@@ -4,9 +4,11 @@ MCP Server for Obsidian RAG.
 Exposes semantic search and vault operations as MCP tools.
 """
 
+import asyncio
 import json
 import logging
 import os
+from functools import partial
 from typing import Any
 
 from mcp.server import Server
@@ -344,10 +346,12 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 f"search_vault: query='{query[:50]}...', top_k={top_k}, tags={tags}"
             )
 
-            response = engine.search(
-                query=query,
-                top_k=top_k,
-                tags=tags if tags else None,
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    engine.search, query=query, top_k=top_k, tags=tags if tags else None
+                ),
             )
             return CallToolResult(
                 content=[
@@ -380,10 +384,9 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
             logger.info(f"search_by_tag: tags={tags}, top_k={top_k}")
 
-            response = engine.search(
-                query=query,
-                top_k=top_k,
-                tags=tags,
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None, partial(engine.search, query=query, top_k=top_k, tags=tags)
             )
             return CallToolResult(
                 content=[
@@ -398,7 +401,8 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
             logger.info(f"get_note: path='{path}'")
 
-            content = engine.get_note(path)
+            loop = asyncio.get_event_loop()
+            content = await loop.run_in_executor(None, partial(engine.get_note, path))
             if content is None:
                 return CallToolResult(
                     content=[TextContent(type="text", text=f"Note not found: {path}")],
@@ -412,9 +416,9 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
             logger.info(f"get_related: path='{path}', top_k={top_k}")
 
-            response = engine.get_related(
-                path=path,
-                top_k=top_k,
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None, partial(engine.get_related, path=path, top_k=top_k)
             )
             return CallToolResult(
                 content=[
@@ -429,7 +433,10 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
 
             logger.info(f"list_recent: limit={limit}")
 
-            recent = engine.list_recent(limit=limit)
+            loop = asyncio.get_event_loop()
+            recent = await loop.run_in_executor(
+                None, partial(engine.list_recent, limit=limit)
+            )
             return CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(recent, indent=2))]
             )
@@ -437,7 +444,8 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
         elif name == "index_status":
             logger.info("index_status")
 
-            stats = engine.get_stats()
+            loop = asyncio.get_event_loop()
+            stats = await loop.run_in_executor(None, engine.get_stats)
             return CallToolResult(
                 content=[
                     TextContent(type="text", text=json.dumps(stats.to_dict(), indent=2))
@@ -470,12 +478,17 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 f"types={conclusion_types}, min_conf={min_confidence}"
             )
 
-            response = engine.search_with_reasoning(
-                query=query,
-                top_k=top_k,
-                conclusion_types=conclusion_types if conclusion_types else None,
-                min_confidence=min_confidence,
-                tags=tags if tags else None,
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                partial(
+                    engine.search_with_reasoning,
+                    query=query,
+                    top_k=top_k,
+                    conclusion_types=conclusion_types if conclusion_types else None,
+                    min_confidence=min_confidence,
+                    tags=tags if tags else None,
+                ),
             )
             return CallToolResult(
                 content=[
@@ -508,9 +521,14 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 f"get_conclusion_trace: id='{conclusion_id[:20]}...', depth={max_depth}"
             )
 
-            trace = engine.get_conclusion_trace(
-                conclusion_id=conclusion_id,
-                max_depth=max_depth,
+            loop = asyncio.get_event_loop()
+            trace = await loop.run_in_executor(
+                None,
+                partial(
+                    engine.get_conclusion_trace,
+                    conclusion_id=conclusion_id,
+                    max_depth=max_depth,
+                ),
             )
 
             if trace is None:
@@ -560,11 +578,16 @@ async def handle_tool_call(name: str, arguments: dict[str, Any]) -> CallToolResu
                 f"id='{conclusion_id[:20] if conclusion_id else None}', top_k={top_k}"
             )
 
-            connected = engine.explore_connected_conclusions(
-                query=query,
-                conclusion_id=conclusion_id,
-                top_k=top_k,
-                min_confidence=min_confidence,
+            loop = asyncio.get_event_loop()
+            connected = await loop.run_in_executor(
+                None,
+                partial(
+                    engine.explore_connected_conclusions,
+                    query=query,
+                    conclusion_id=conclusion_id,
+                    top_k=top_k,
+                    min_confidence=min_confidence,
+                ),
             )
 
             return CallToolResult(

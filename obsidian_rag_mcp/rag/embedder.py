@@ -29,7 +29,6 @@ class EmbedderConfig:
     model: str = "text-embedding-3-small"
     batch_size: int = 100  # OpenAI allows up to 2048
     dimensions: int | None = None  # Use model default
-    max_retries: int = 3
     query_max_chars: int = 8000  # Stricter limit for queries
 
 

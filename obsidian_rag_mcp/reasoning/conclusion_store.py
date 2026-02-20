@@ -59,7 +59,10 @@ class ConclusionStore:
         self.embedder = embedder
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
-            metadata={"description": "Extracted conclusions from vault content"},
+            metadata={
+                "description": "Extracted conclusions from vault content",
+                "hnsw:space": "cosine",
+            },
         )
 
         logger.debug(f"Initialized conclusion store at {persist_dir}")
@@ -351,7 +354,10 @@ class ConclusionStore:
         self.client.delete_collection(self.COLLECTION_NAME)
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
-            metadata={"description": "Extracted conclusions from vault content"},
+            metadata={
+                "description": "Extracted conclusions from vault content",
+                "hnsw:space": "cosine",
+            },
         )
 
     def _result_to_conclusion(

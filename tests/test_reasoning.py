@@ -151,7 +151,7 @@ class TestExtractorConfig:
 class TestConclusionExtractor:
     """Test ConclusionExtractor with mocked OpenAI."""
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_extract_conclusions(self, mock_openai_class):
         """Test extracting conclusions from a chunk."""
         # Setup mock
@@ -200,7 +200,7 @@ class TestConclusionExtractor:
         assert conclusions[0].type == ConclusionType.DEDUCTIVE
         assert conclusions[0].confidence == 0.95
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_empty_chunk_returns_empty(self, mock_openai_class):
         """Test that empty chunks return no conclusions."""
         mock_client = Mock()
@@ -225,7 +225,7 @@ class TestConclusionExtractor:
         assert conclusions == []
         mock_client.chat.completions.create.assert_not_called()
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_filters_low_confidence(self, mock_openai_class):
         """Test that low confidence conclusions are filtered."""
         mock_client = Mock()
@@ -278,7 +278,7 @@ class TestConclusionExtractor:
         assert len(conclusions) == 1
         assert conclusions[0].statement == "High conf"
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_batch_extraction(self, mock_openai_class):
         """Test batch extraction of multiple chunks."""
         mock_client = Mock()
@@ -354,26 +354,21 @@ class TestConclusionExtractor:
         # Only one API call for both chunks
         assert mock_client.chat.completions.create.call_count == 1
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
-    def test_deterministic_ids_same_statement_different_chunks(self, mock_openai_class):
-        """Same statement from different chunks produces same ID."""
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
+    def test_deterministic_ids_same_statement(self, mock_openai_class):
+        """Same statement always produces same ID."""
         mock_client = Mock()
         mock_openai_class.return_value = mock_client
         mock_client.api_key = "test-key"
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        # Same statement, different chunk IDs
-        id1 = extractor._generate_id("Database error occurred", "chunk1")
-        id2 = extractor._generate_id("Database error occurred", "chunk2")
-        id3 = extractor._generate_id(
-            "Database error occurred", "totally-different-chunk"
-        )
+        id1 = extractor._generate_id("Database error occurred")
+        id2 = extractor._generate_id("Database error occurred")
 
         assert id1 == id2
-        assert id2 == id3
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_deterministic_ids_different_statements(self, mock_openai_class):
         """Different statements produce different IDs."""
         mock_client = Mock()
@@ -382,12 +377,12 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error occurred", "chunk1")
-        id2 = extractor._generate_id("Network connection failed", "chunk1")
+        id1 = extractor._generate_id("Database error occurred")
+        id2 = extractor._generate_id("Network connection failed")
 
         assert id1 != id2
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_deterministic_ids_case_insensitive(self, mock_openai_class):
         """IDs are case-insensitive for deduplication."""
         mock_client = Mock()
@@ -396,14 +391,14 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error", "chunk1")
-        id2 = extractor._generate_id("database error", "chunk1")
-        id3 = extractor._generate_id("DATABASE ERROR", "chunk2")
+        id1 = extractor._generate_id("Database error")
+        id2 = extractor._generate_id("database error")
+        id3 = extractor._generate_id("DATABASE ERROR")
 
         assert id1 == id2
         assert id2 == id3
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     def test_deterministic_ids_whitespace_normalized(self, mock_openai_class):
         """IDs are whitespace-normalized for deduplication."""
         mock_client = Mock()
@@ -412,12 +407,10 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error", "chunk1")
-        id2 = extractor._generate_id("  Database error  ", "chunk1")
-        id3 = extractor._generate_id("Database error", "chunk2")
+        id1 = extractor._generate_id("Database error")
+        id2 = extractor._generate_id("  Database error  ")
 
         assert id1 == id2
-        assert id2 == id3
 
 
 class TestConclusionStore:

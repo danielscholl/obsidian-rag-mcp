@@ -159,7 +159,7 @@ class TestReasoningIndexer:
             assert indexer.conclusion_extractor is None
             assert indexer.conclusion_store is None
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
     @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_reasoning_initialized_when_enabled(
@@ -191,7 +191,7 @@ class TestReasoningIndexer:
             assert indexer.conclusion_extractor is not None
             assert indexer.conclusion_store is not None
 
-    @patch("obsidian_rag_mcp.reasoning.extractor.OpenAI")
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
     @patch("obsidian_rag_mcp.rag.indexer.OpenAIEmbedder")
     @patch("obsidian_rag_mcp.rag.indexer.chromadb.PersistentClient")
     def test_index_stats_include_reasoning_info(

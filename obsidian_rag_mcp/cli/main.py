@@ -7,12 +7,14 @@ import json
 import click
 from dotenv import load_dotenv
 
+from obsidian_rag_mcp import __version__
+
 # Load .env file
 load_dotenv()
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version=__version__)
 def cli():
     """Obsidian RAG - Semantic search for your vault."""
     pass
