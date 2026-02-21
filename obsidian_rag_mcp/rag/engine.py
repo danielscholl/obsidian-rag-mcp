@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from obsidian_rag_mcp.reasoning import ConclusionStore
     from obsidian_rag_mcp.reasoning.extractor import ExtractorConfig
-    from obsidian_rag_mcp.reasoning.models import ConclusionType
 
 
 @dataclass
