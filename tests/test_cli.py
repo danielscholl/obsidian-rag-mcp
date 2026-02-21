@@ -4,6 +4,7 @@ import tempfile
 
 from click.testing import CliRunner
 
+from obsidian_rag_mcp import __version__
 from obsidian_rag_mcp.cli.main import cli
 
 
@@ -22,7 +23,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        assert __version__ in result.output
 
 
 class TestSearchValidation:

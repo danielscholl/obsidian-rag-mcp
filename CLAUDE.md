@@ -109,7 +109,7 @@ Breaking changes: `feat!: require Python 3.12+`
 ## Dependencies
 
 - **Runtime**: chromadb, openai, mcp, click, pydantic, python-frontmatter, tenacity, tiktoken, python-dotenv
-- **Dev**: pytest, pytest-asyncio, pytest-cov, mypy, ruff, black
+- **Dev**: pytest, pytest-asyncio, pytest-cov, mypy, ruff, black, pre-commit
 - **Build**: hatchling
 - **Python**: >=3.11, <3.14
 

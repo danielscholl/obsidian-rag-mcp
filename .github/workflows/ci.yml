@@ -65,7 +65,7 @@ jobs:
       - name: Check dependencies with pip-audit
         id: pip-audit
         continue-on-error: true
-        run: pip-audit --desc || true
+        run: pip-audit --desc
 
       - name: Quality Check Summary
         if: always()

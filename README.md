@@ -19,7 +19,7 @@ You have 500 notes in Obsidian. You know you wrote something about database time
 
 This server indexes your vault with vector embeddings. Ask for "RCAs where database timeouts caused customer-facing issues" and get results even if your notes use terms like "CosmosDB latency", "connection pool exhaustion", or "query timeout."
 
-Semantic search. Your data stays local. Sub-second queries.
+Semantic search. Vectors stored locally. Sub-second queries.
 
 ---
 
