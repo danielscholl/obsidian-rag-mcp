@@ -26,6 +26,12 @@ export OPENAI_API_KEY="sk-..."
 $env:OPENAI_API_KEY = "sk-..."
 ```
 
+**Azure OpenAI alternative:**
+```bash
+export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
+export AZURE_API_KEY="your-key"
+```
+
 ## 3. Index Your Vault
 
 ```bash
@@ -90,7 +96,11 @@ This uses an LLM to extract logical conclusions from your content.
 
 ## Connect to Claude Desktop
 
-Add to `~/.claude/claude_desktop_config.json` (or `%APPDATA%\Claude\` on Windows):
+Add to your MCP config file:
+- **Linux/macOS:** `~/.claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+### Linux / macOS
 
 ```json
 {
@@ -109,10 +119,55 @@ Add to `~/.claude/claude_desktop_config.json` (or `%APPDATA%\Claude\` on Windows
 }
 ```
 
-Restart Claude Desktop, then ask:
-- "Search my vault for notes about kubernetes"
-- "Find RCAs related to authentication"
-- "What did I write about the Q3 migration?"
+### Windows
+
+```json
+{
+  "mcpServers": {
+    "obsidian-rag": {
+      "command": "uv",
+      "args": [
+        "run", "--directory", "C:\\path\\to\\obsidian-rag-mcp",
+        "obsidian-rag", "serve", "--vault", "C:\\path\\to\\your\\vault"
+      ],
+      "env": {
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+**Note:** Use double backslashes (`\\`) in Windows paths within JSON.
+
+### With Reasoning Enabled
+
+Add `"REASONING_ENABLED": "true"` to the `env` block.
+
+### Verify Connection
+
+Restart Claude Desktop, then type `/mcp` to see connected servers. You should see `obsidian-rag` listed.
+
+Try asking:
+- "Search my vault for RCAs about database connection issues"
+- "Find notes tagged with #project and #2024"
+- "What's related to the kubernetes deployment runbook?"
+- "Search for conclusions about authentication failures" (with reasoning enabled)
+
+### Troubleshooting
+
+**Server not appearing:** Check config file path, verify JSON syntax, restart Claude Desktop completely.
+
+**"uv not found":** Ensure uv is in your PATH. On Windows, specify the full path:
+```json
+{ "command": "C:\\Users\\YourName\\.local\\bin\\uv.exe" }
+```
+
+**Connection errors:** Check logs at `~/Library/Logs/Claude/` (macOS) or `%APPDATA%\Claude\logs\` (Windows).
+
+**No search results:** Index your vault first with `uv run obsidian-rag index --vault /path/to/vault`.
+
+**Slow first query:** The first query loads the ChromaDB index into memory. Subsequent queries are faster.
 
 ---
 
@@ -130,6 +185,6 @@ Restart Claude Desktop, then ask:
 
 ## Next Steps
 
-- [Claude Desktop Setup](CLAUDE_CODE_SETUP.md) - Full MCP integration guide
 - [Integration Guide](INTEGRATION.md) - Use with other agents/pipelines
 - [Architecture](ARCHITECTURE.md) - How it works under the hood
+- [Development](DEVELOPMENT.md) - Contribute to the project
