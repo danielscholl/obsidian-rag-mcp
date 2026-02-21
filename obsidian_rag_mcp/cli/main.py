@@ -38,11 +38,20 @@ def index(vault: str, force: bool, persist_dir: str):
     """Index an Obsidian vault for semantic search."""
     from obsidian_rag_mcp.rag import RAGEngine
 
+    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
     click.echo(f"Indexing vault: {vault}")
+    if reasoning_enabled:
+        click.echo("Reasoning: enabled")
 
     engine = RAGEngine(
         vault_path=vault,
         persist_dir=persist_dir,
+        reasoning_enabled=reasoning_enabled,
     )
 
     stats = engine.index(force=force)

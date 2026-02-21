@@ -98,7 +98,9 @@ jobs:
           fi
 
           if [[ "${{ steps.black.outcome }}" == "failure" ]] || \
-             [[ "${{ steps.ruff.outcome }}" == "failure" ]]; then
+             [[ "${{ steps.ruff.outcome }}" == "failure" ]] || \
+             [[ "${{ steps.bandit.outcome }}" == "failure" ]] || \
+             [[ "${{ steps.pip-audit.outcome }}" == "failure" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### ❌ Required checks failed" >> $GITHUB_STEP_SUMMARY
             exit 1
