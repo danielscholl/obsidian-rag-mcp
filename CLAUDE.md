@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**obsidian-rag-mcp** is an MCP server that provides semantic search over Obsidian vaults. It indexes markdown files with vector embeddings (OpenAI) stored in ChromaDB, then exposes search via the Model Context Protocol for Claude Code and other AI assistants.
+**obsidian-rag-mcp** is an MCP server that provides semantic search over Obsidian vaults. It indexes markdown files with vector embeddings (OpenAI/Azure OpenAI) stored in ChromaDB, then exposes search via the Model Context Protocol.
 
 ## Quick Commands
 
@@ -28,14 +28,11 @@ uv run mypy obsidian_rag_mcp/
 # Security scan
 uv run bandit -r obsidian_rag_mcp/ -ll -x tests/
 
-# Dependency audit
-pip-audit
-
 # Run all quality checks (CI simulation)
 uv run black --check obsidian_rag_mcp/ tests/ && \
 uv run ruff check obsidian_rag_mcp/ tests/ && \
 uv run mypy obsidian_rag_mcp/ && \
-uv run pytest --cov=obsidian_rag_mcp --cov-fail-under=50
+uv run pytest --cov=obsidian_rag_mcp --cov-fail-under=65
 
 # Index sample vault
 uv run obsidian-rag index --vault ./vault
@@ -61,7 +58,7 @@ obsidian_rag_mcp/
 │   ├── conclusion_store.py  # ChromaDB storage for conclusions
 │   └── models.py        # Conclusion, ConclusionType dataclasses
 ├── mcp/
-│   ├── server.py        # MCP server (tools: search_vault, search_by_tag, etc.)
+│   ├── server.py        # MCP server (9 tools)
 │   └── __main__.py      # Entry point
 ├── cli/
 │   └── main.py          # Click CLI (index, search, serve, stats)
@@ -71,38 +68,25 @@ obsidian_rag_mcp/
 
 ### Key Patterns
 
-- **Async everywhere**: MCP server is async; engine queries use asyncio
+- **Async everywhere**: MCP server is async; engine queries wrapped in `run_in_executor`
 - **Global engine instance**: `server.py` initializes a single `RAGEngine` on startup
-- **Pydantic models**: Used for structured data (reasoning models)
 - **Click CLI**: Commands in `cli/main.py`
 - **ChromaDB local**: Vectors stored locally in `.chroma/` directory
 - **Incremental indexing**: Only re-indexes changed files (content hash)
-
-### MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `search_vault` | Semantic search across all content |
-| `search_by_tag` | Filter by Obsidian tags |
-| `get_note` | Retrieve full note content |
-| `get_related` | Find similar notes |
-| `list_recent` | Recently modified notes |
-| `index_status` | Index statistics |
-| `search_with_reasoning` | Search with extracted conclusions |
+- **Azure support**: `embedder.py` has `_create_openai_client()` factory for OpenAI/Azure
 
 ## Code Style
 
 - **Formatter**: `black` (default settings)
 - **Linter**: `ruff` (rules: E, F, I, N, W, UP; line-length 100)
-- **Type checker**: `mypy --strict`
+- **Type checker**: `mypy --strict` (configured in pyproject.toml)
 - **Type hints**: Required for all public functions
-- **Docstrings**: Module-level and public functions
 - **Imports**: Sorted by ruff (isort-compatible)
 
 ## Testing
 
 - Framework: `pytest` with `pytest-asyncio`
-- Coverage minimum: 50% (enforced in CI)
+- Coverage minimum: 65% (enforced in CI)
 - Tests in `tests/` mirror the package structure
 - Use existing fixtures in `tests/conftest.py`
 - Mock external services (OpenAI, ChromaDB) in unit tests
@@ -134,10 +118,12 @@ Breaking changes: `feat!: require Python 3.12+`
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPENAI_API_KEY` | Yes* | OpenAI API key for embeddings |
-| `AZURE_OPENAI_ENDPOINT` | No* | Azure OpenAI endpoint |
-| `AZURE_API_KEY` | No* | Azure OpenAI key |
-| `VAULT_PATH` | No | Default vault path |
-| `REASONING_ENABLED` | No | Enable conclusion extraction |
+| `AZURE_OPENAI_ENDPOINT` | No* | Azure OpenAI endpoint URL |
+| `AZURE_API_KEY` | No* | Azure OpenAI API key |
+| `AZURE_OPENAI_VERSION` | No | Azure API version (default: `2024-10-21`) |
+| `AZURE_EMBEDDING_DEPLOYMENT` | No | Azure deployment name (default: `text-embedding-3-small`) |
+| `OBSIDIAN_VAULT_PATH` | No | Default vault path |
+| `REASONING_ENABLED` | No | Enable conclusion extraction (default: false) |
 
 \* Either OpenAI or Azure OpenAI credentials required.
 
@@ -145,5 +131,5 @@ Breaking changes: `feat!: require Python 3.12+`
 
 - [Architecture](docs/ARCHITECTURE.md) -- System design and data flow
 - [Development](docs/DEVELOPMENT.md) -- Local setup (includes Windows)
-- [Getting Started](docs/GETTING_STARTED.md) -- 5-minute tutorial
+- [Getting Started](docs/GETTING_STARTED.md) -- 5-minute tutorial + Claude Desktop setup
 - [ADRs](docs/decisions/) -- Architectural decision records

@@ -95,8 +95,8 @@ uv run black obsidian_rag_mcp/ tests/
 # Lint
 uv run ruff check obsidian_rag_mcp/ tests/
 
-# Type check (optional)
-uv run mypy obsidian_rag_mcp/ --ignore-missing-imports
+# Type check
+uv run mypy obsidian_rag_mcp/
 ```
 
 Pre-commit hooks run automatically on commit.
@@ -111,7 +111,7 @@ uv run obsidian-rag serve --vault /path/to/vault
 
 ### With Claude Desktop
 
-See [CLAUDE_CODE_SETUP.md](CLAUDE_CODE_SETUP.md) for full instructions.
+See [Getting Started](GETTING_STARTED.md#connect-to-claude-desktop) for full instructions.
 
 ## Project Structure
 

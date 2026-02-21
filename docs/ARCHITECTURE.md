@@ -155,12 +155,12 @@ obsidian-rag-mcp/
 │   │   └── server.py     # MCP server
 │   └── cli/
 │       └── main.py       # CLI
-├── tests/                # 88 tests
+├── tests/                # pytest tests
 ├── vault/                # Sample vault
 ├── docs/                 # Documentation
 │   ├── ARCHITECTURE.md   # This file
 │   ├── DEVELOPMENT.md    # Local setup
-│   ├── CLAUDE_CODE_SETUP.md
+│   ├── GETTING_STARTED.md # Quickstart + Claude Desktop setup
 │   ├── INTEGRATION.md    # Integration guide
 │   └── decisions/        # ADRs
 └── pyproject.toml

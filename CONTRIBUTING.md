@@ -43,7 +43,7 @@ uv run ruff check obsidian_rag_mcp/ tests/
 uv run mypy obsidian_rag_mcp/
 
 # Tests with coverage
-uv run pytest --cov=obsidian_rag_mcp --cov-fail-under=50
+uv run pytest --cov=obsidian_rag_mcp --cov-fail-under=65
 
 # Security scan
 uv run bandit -r obsidian_rag_mcp/ -ll -x tests/
@@ -55,7 +55,7 @@ uv run bandit -r obsidian_rag_mcp/ -ll -x tests/
 - **Linting**: `ruff` with rules E, F, I, N, W, UP
 - **Type checking**: `mypy --strict`
 - **Type hints**: Required for all public functions
-- **Tests**: Required for new features; minimum 50% coverage
+- **Tests**: Required for new features; minimum 65% coverage
 
 ## Commit Messages
 

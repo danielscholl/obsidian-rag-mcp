@@ -97,10 +97,13 @@ Then ask Claude things like:
 |------|--------------|
 | `search_vault` | Semantic search across all content |
 | `search_by_tag` | Filter by Obsidian tags |
-| `get_related` | Find notes similar to a given note |
 | `get_note` | Retrieve full note content |
+| `get_related` | Find notes similar to a given note |
 | `list_recent` | Recently modified notes |
-| `search_with_reasoning` | Search with extracted conclusions (Phase 2) |
+| `index_status` | Index statistics |
+| `search_with_reasoning` | Search with extracted conclusions |
+| `get_conclusion_trace` | Trace reasoning for a conclusion |
+| `explore_connected_conclusions` | Find related conclusions |
 
 ---
 
@@ -112,10 +115,9 @@ Then ask Claude things like:
 4. **Reasoning** (optional): Extract conclusions from notes at index time for richer search results
 
 **Documentation:**
-- **[Getting Started](docs/GETTING_STARTED.md)** - 5-minute tutorial
+- **[Getting Started](docs/GETTING_STARTED.md)** - 5-minute tutorial with Claude Desktop setup
 - [Architecture](docs/ARCHITECTURE.md) - System design
 - [Development](docs/DEVELOPMENT.md) - Local setup (includes Windows)
-- [Claude Desktop](docs/CLAUDE_CODE_SETUP.md) - MCP integration
 - [Integration](docs/INTEGRATION.md) - Use with other agents/pipelines
 
 ---
@@ -171,6 +173,6 @@ MIT
 
 <div align="center">
 
-[Getting Started](docs/GETTING_STARTED.md) | [Architecture](docs/ARCHITECTURE.md) | [Development](docs/DEVELOPMENT.md) | [Claude Desktop](docs/CLAUDE_CODE_SETUP.md) | [Integration](docs/INTEGRATION.md)
+[Getting Started](docs/GETTING_STARTED.md) | [Architecture](docs/ARCHITECTURE.md) | [Development](docs/DEVELOPMENT.md) | [Integration](docs/INTEGRATION.md)
 
 </div>
