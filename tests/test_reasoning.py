@@ -355,16 +355,16 @@ class TestConclusionExtractor:
         assert mock_client.chat.completions.create.call_count == 1
 
     @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
-    def test_deterministic_ids_same_statement(self, mock_openai_class):
-        """Same statement always produces same ID."""
+    def test_deterministic_ids_same_statement_same_source(self, mock_openai_class):
+        """Same statement + same source always produces same ID."""
         mock_client = Mock()
         mock_openai_class.return_value = mock_client
         mock_client.api_key = "test-key"
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error occurred")
-        id2 = extractor._generate_id("Database error occurred")
+        id1 = extractor._generate_id("Database error occurred", "chunk1")
+        id2 = extractor._generate_id("Database error occurred", "chunk1")
 
         assert id1 == id2
 
@@ -377,8 +377,22 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error occurred")
-        id2 = extractor._generate_id("Network connection failed")
+        id1 = extractor._generate_id("Database error occurred", "chunk1")
+        id2 = extractor._generate_id("Network connection failed", "chunk1")
+
+        assert id1 != id2
+
+    @patch("obsidian_rag_mcp.reasoning.extractor._create_openai_client")
+    def test_deterministic_ids_same_statement_different_source(self, mock_openai_class):
+        """Same statement from different sources produces different IDs (provenance)."""
+        mock_client = Mock()
+        mock_openai_class.return_value = mock_client
+        mock_client.api_key = "test-key"
+
+        extractor = ConclusionExtractor(api_key="test-key")
+
+        id1 = extractor._generate_id("Database error occurred", "chunk_from_note_a")
+        id2 = extractor._generate_id("Database error occurred", "chunk_from_note_b")
 
         assert id1 != id2
 
@@ -391,9 +405,9 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error")
-        id2 = extractor._generate_id("database error")
-        id3 = extractor._generate_id("DATABASE ERROR")
+        id1 = extractor._generate_id("Database error", "chunk1")
+        id2 = extractor._generate_id("database error", "chunk1")
+        id3 = extractor._generate_id("DATABASE ERROR", "chunk1")
 
         assert id1 == id2
         assert id2 == id3
@@ -407,8 +421,8 @@ class TestConclusionExtractor:
 
         extractor = ConclusionExtractor(api_key="test-key")
 
-        id1 = extractor._generate_id("Database error")
-        id2 = extractor._generate_id("  Database error  ")
+        id1 = extractor._generate_id("Database error", "chunk1")
+        id2 = extractor._generate_id("  Database error  ", "chunk1")
 
         assert id1 == id2
 

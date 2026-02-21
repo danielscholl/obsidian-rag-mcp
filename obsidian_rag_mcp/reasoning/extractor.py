@@ -265,8 +265,8 @@ class ConclusionExtractor:
                 if not self._should_include_conclusion(conclusion_type):
                     continue
 
-                # Generate unique ID
-                conclusion_id = self._generate_id(statement)
+                # Generate unique ID (includes source for provenance)
+                conclusion_id = self._generate_id(statement, chunk_id)
 
                 conclusions.append(
                     Conclusion(
@@ -312,23 +312,24 @@ class ConclusionExtractor:
             return False
         return True
 
-    def _generate_id(self, statement: str) -> str:
+    def _generate_id(self, statement: str, source_chunk_id: str) -> str:
         """Generate a deterministic ID for a conclusion.
 
-        IDs are based solely on the normalized statement text (lowercase,
-        stripped). This ensures the same statement extracted from different
-        chunks produces the same ID, enabling idempotent deduplication
-        during reindexing.
+        IDs are based on the normalized statement text combined with the
+        source chunk ID. This preserves provenance — the same statement
+        from different source chunks gets distinct IDs — while remaining
+        idempotent for reindexing (same chunk always produces the same ID).
 
         Args:
             statement: The conclusion statement text.
+            source_chunk_id: ID of the source chunk.
 
         Returns:
-            32-character hex ID derived from the normalized statement.
+            32-character hex ID derived from the statement + source.
         """
-        # Normalize: lowercase and strip whitespace for case-insensitive dedup
         normalized = statement.lower().strip()
-        return hashlib.sha256(normalized.encode()).hexdigest()[:32]
+        composite = f"{normalized}:{source_chunk_id}"
+        return hashlib.sha256(composite.encode()).hexdigest()[:32]
 
     def extract_conclusions_batch(
         self,
@@ -464,7 +465,7 @@ class ConclusionExtractor:
                     if not self._should_include_conclusion(conclusion_type):
                         continue
 
-                    conclusion_id = self._generate_id(statement)
+                    conclusion_id = self._generate_id(statement, chunk_id)
                     conclusions.append(
                         Conclusion(
                             id=conclusion_id,
