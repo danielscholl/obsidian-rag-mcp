@@ -35,7 +35,7 @@ export AZURE_API_KEY="your-key"
 ## 3. Index Your Vault
 
 ```bash
-uv run obsidian-rag index /path/to/your/vault
+uv run obsidian-rag index --vault /path/to/your/vault
 ```
 
 This scans all `.md` files, chunks them intelligently, and creates embeddings.
@@ -87,7 +87,7 @@ Extract conclusions from your notes for richer search:
 ```bash
 # Set env var before indexing
 export REASONING_ENABLED=true
-uv run obsidian-rag index /path/to/your/vault
+uv run obsidian-rag index --vault /path/to/your/vault
 ```
 
 This uses an LLM to extract logical conclusions from your content.
@@ -175,7 +175,7 @@ Try asking:
 
 | Command | What it does |
 |---------|--------------|
-| `obsidian-rag index <vault>` | Index/reindex vault |
+| `obsidian-rag index --vault <path>` | Index/reindex vault |
 | `obsidian-rag search "query" --vault <path>` | Semantic search |
 | `obsidian-rag search "query" --vault <path> --tags tag1` | Filter by tag |
 | `obsidian-rag stats --vault <path>` | Show index stats |

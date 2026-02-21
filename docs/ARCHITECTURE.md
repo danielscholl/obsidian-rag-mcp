@@ -168,7 +168,7 @@ obsidian-rag-mcp/
 
 ## Security
 
-- **Local-first**: ChromaDB runs locally, vectors never leave machine
+- **Local-first**: ChromaDB runs locally, vectors stored on your machine. Note content is sent to OpenAI/Azure for embedding generation.
 - **API keys**: Environment variables only, never committed
 - **Path validation**: All file access validated against vault root
 - **Read-only**: No code execution, no file writes to vault

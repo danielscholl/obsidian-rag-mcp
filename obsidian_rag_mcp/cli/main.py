@@ -3,6 +3,7 @@ Command-line interface for Obsidian RAG.
 """
 
 import json
+import os
 
 import click
 from dotenv import load_dotenv
@@ -21,20 +22,36 @@ def cli():
 
 
 @cli.command()
-@click.argument("vault_path", type=click.Path(exists=True))
+@click.option(
+    "--vault",
+    "-v",
+    envvar="OBSIDIAN_VAULT_PATH",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to Obsidian vault",
+)
 @click.option("--force", "-f", is_flag=True, help="Force reindex all files")
 @click.option(
     "--persist-dir", "-p", default=".vault", help="ChromaDB storage directory"
 )
-def index(vault_path: str, force: bool, persist_dir: str):
+def index(vault: str, force: bool, persist_dir: str):
     """Index an Obsidian vault for semantic search."""
     from obsidian_rag_mcp.rag import RAGEngine
 
-    click.echo(f"Indexing vault: {vault_path}")
+    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    click.echo(f"Indexing vault: {vault}")
+    if reasoning_enabled:
+        click.echo("Reasoning: enabled")
 
     engine = RAGEngine(
-        vault_path=vault_path,
+        vault_path=vault,
         persist_dir=persist_dir,
+        reasoning_enabled=reasoning_enabled,
     )
 
     stats = engine.index(force=force)
@@ -155,14 +172,23 @@ def serve(vault: str, persist_dir: str):
     """Start the MCP server (stdio transport)."""
     from obsidian_rag_mcp.mcp.server import run_server
 
+    reasoning_enabled = os.getenv("REASONING_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
     # Log to stderr to avoid interfering with MCP JSON-RPC on stdout
     click.echo(f"Starting MCP server for vault: {vault}", err=True)
     click.echo(f"ChromaDB: {persist_dir}", err=True)
+    if reasoning_enabled:
+        click.echo("Reasoning: enabled", err=True)
     click.echo("Using stdio transport (for Claude Code integration)", err=True)
 
     run_server(
         vault_path=vault,
         persist_dir=persist_dir,
+        reasoning_enabled=reasoning_enabled,
     )
 
 
